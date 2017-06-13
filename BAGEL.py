@@ -1,7 +1,7 @@
 #!/usr/bin/env python 
 
 VERSION = 2.0
-BUILD = 106
+BUILD = 107
 
 #---------------------------------
 # BAGEL:  Bayesian Analysis of Gene EssentaLity
@@ -47,7 +47,7 @@ helptext_bf = ('\n'
 		   '  other options:\n'
 		   '     --numiter=N                    Number of bootstrap iterations (default 1000)\n'
 		   '     -h, --help                     Show this help text\n'
-		   '     -v, --cross-validation         Use 10-folds cross-validation instead of bootstrapping (Fast)\n'
+		   '     -b, --bootstrapping            Use bootstrapping instead of 10-folds cross-validation (Slow)\n'
 		   '\n'
 		   '  Example:\n' 
 		   '  BAGEL.py analysis -i foldchange_file -o experiment.bf -e essentials_training_set -n nonessentials_training_set -c 1,2,3\n'
@@ -195,11 +195,11 @@ elif sys.argv[1] == 'analysis':
 	
 	NUM_BOOTSTRAPS = 1000
 	NETWORKBOOST = False
-	TRAINMETHOD = 0   # 0 == bootstrapping, 1 == cross-validation
+	TRAINMETHOD = 1   # 0 == bootstrapping, 1 == cross-validation (default)
 	TESTMODE = False
-	
+	check=0
 	try:
-		opts, args = getopt.getopt(sys.argv[2:], "hti:o:c:e:n:w:v", ["numiter=","help","cross-validation"])
+		opts, args = getopt.getopt(sys.argv[2:], "hti:o:c:e:n:w:b", ["numiter=","help","bootstrapping"])
 	except getopt.GetoptError:
 		print helptext_bf
 		sys.exit(2)
@@ -212,11 +212,14 @@ elif sys.argv[1] == 'analysis':
 			sys.exit()
 		elif opt == '-i':
 			foldchangefile = arg
+			check+=1
 		elif opt == '-o':
 			outfilename = arg
 		elif opt == '-e':
+			check+=1
 			ess_ref = arg
 		elif opt == '-n':
+			check+=1
 			non_ref = arg
 		elif opt == '-c':
 			columns = arg.split(',')
@@ -226,16 +229,22 @@ elif sys.argv[1] == 'analysis':
 			NETWORKBOOST = True
 			print "Network boosting enabled"
 			networkfile = arg
-		elif opt in ('-v','--cross-validation'):
-			TRAINMETHOD = 1
+		elif opt in ('-b','--bootstrapping'):
+			TRAINMETHOD = 0
 		elif opt in ('-t'):
 			TESTMODE = True
 		else:
 			print helptext_bf
 			print "Error! Unknown arguments"
 			sys.exit(2)
-	
-	
+	try:
+		outfilename
+	except:
+		outfilename = foldchangefile.replace(" ","_") + ".bf"
+	if check!=3:
+		print helptext_bf
+		print "Error! Missing arguments"
+		sys.exit(2)
 	from numpy import *
 	import scipy.stats as stats
 	import pandas as pd
@@ -385,6 +394,10 @@ elif sys.argv[1] == 'analysis':
 		LOOPCOUNT = NUM_BOOTSTRAPS
 	elif TRAINMETHOD == 1:
 		LOOPCOUNT = 10  # 10-folds
+
+	if TESTMODE == True:
+		fp = open(outfilename+".traininfo","w")
+		fp.write("#1: Loopcount\n#2: Training set\n#3: Testset\n")
 		
 	print "Iter",
 	print "TrainEss",
@@ -401,6 +414,8 @@ elif sys.argv[1] == 'analysis':
 		# define essential and nonessential training sets:  arrays of indexes
 		#
 		gene_train_idx,gene_test_idx = training_data.get_data(TRAINMETHOD)
+		if TESTMODE == True:
+			fp.write("%d\n%s\n%s\n"%(loop,",".join(genes_array[gene_train_idx]),",".join(genes_array[gene_test_idx])))
 		
 		train_ess = where( in1d( genes_array[gene_train_idx], coreEss))[0]
 		train_non = where( in1d( genes_array[gene_train_idx], nonEss))[0]
@@ -467,6 +482,8 @@ elif sys.argv[1] == 'analysis':
 				bayes_factor += slope * x + intercept
 			bf[g].append(bayes_factor)
 		
+	if TESTMODE == True:
+		fp.close()
 	bf_mean = dict()
 	bf_std = dict()
 	bf_norm = dict()
@@ -483,14 +500,13 @@ elif sys.argv[1] == 'analysis':
 	training_data = Training(gene_idx)  # set training class reset
 	
 	
-	if TESTMODE == True:
-		fp = open(outfilename+".netscore","w")
-	
 	#
 	# calculate network scores
 	#
 
 	if NETWORKBOOST == True:
+		if TESTMODE == True: # TEST MODE
+			fp = open(outfilename+".netscore","w")
 		print "\nNetwork score calculation start\n"
 		networkscores = {}
 		for g in genes_array[gene_idx]:
@@ -571,15 +587,15 @@ elif sys.argv[1] == 'analysis':
 			for g in genes_array[gene_test_idx]:
 				if g in networkscores:
 					if TESTMODE == True:
-						fp.write("%s\t%f\t%f\t%f\n"%(g,networkscores[g],  log2( max(ymin_ess,kess.evaluate(networkscores[g])[0]) / max(ymin_non,knon.evaluate(networkscores[g])[0]) ) , slope * networkscores[g] + intercept))
+						fp.write("%s\t%f\t%f\n"%(g,networkscores[g],  slope * networkscores[g] + intercept))
 					nbf = slope * networkscores[g] + intercept
 				else:
 					nbf = 0.0
 					
 				boostedbf[g].append(bf_mean[g] + nbf)
 	
-	if TESTMODE == True:
-		fp.close()
+		if TESTMODE == True:
+			fp.close()
 	#
 	# print out results
 	#
