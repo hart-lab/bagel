@@ -1,34 +1,39 @@
 #!/usr/bin/env python 
 
 VERSION = 2.0
-BUILD = 107
+BUILD = 108
 
 #---------------------------------
 # BAGEL:  Bayesian Analysis of Gene EssentaLity
-# (c) Traver Hart, 02/2015.
-# modified 4/2017
+# (c) Traver Hart <traver@hart-lab.org>, Eiru Kim <rooeikim@gmail.com> 2017.
+# modified 9/2017
 # Free to modify and redistribute with attribtuion
 #---------------------------------
+
+# ------------------------------------
+# constants
 import sys, getopt
 
-
-
-helptext_main = ('\n'
-		   'BAGEL.py' 
-		   '\n'
-		   '  from the Bayesian Analysis of Gene EssentiaLity (BAGEL) suite\n'
-		   '  Version ' + str(VERSION) + ' Build ' + str(BUILD) + '\n' 
-		   '\n'
-		   'Foldchange calculation from readcount data\n'
-		   '  BAGEL.py fc -i [read count file] -o [output label] -c [control column]\n'
-		   '\n'
-		   'Measuring Essentiality by Bayes Factor from foldchange data\n'
-		   '  BAGEL.py analysis -i [fold change file] -o [output file] -e [reference essentials] -n [reference nonessentials] -c [columns to test]\n'
-		   '\n')
-
-
-helptext_bf = ('\n'
-		   'BAGEL.py analysis -i [fold change file] -o [output file] -e [reference essentials] -n [reference nonessentials] -c [columns to test]\n' 
+def helptext(arg):
+	if (arg=='main'):
+		return ('\n'
+		'BAGEL.py' 
+		'\n'
+		'  from the Bayesian Analysis of Gene EssentiaLity (BAGEL) suite\n'
+		'  Version ' + str(VERSION) + ' Build ' + str(BUILD) + '\n' 
+		'\n'
+		'Calculate fold changes from readcount data\n'
+		'  BAGEL.py fc -i [read count file] -o [output label] -c [control column]\n'
+		'\n'
+		'Calculate Bayes Factors from foldchange data\n'
+		'  BAGEL.py bf -i [fold change file] -o [output file] -e [reference essentials] -n [reference nonessentials] -c [columns to test]\n'
+		'\n'
+		'Calculate precision-recall from Bayes Factors\n'
+		'  BAGEL.py pr -i [Bayes Factor file] -o [output file] -e [reference essentials] -n [reference nonessentials]\n'
+		'\n')
+	elif (arg=='bf'):
+		return( '\n'
+		   'BAGEL.py bf -i [fold change file] -o [output file] -e [reference essentials] -n [reference nonessentials] -c [columns to test]\n' 
 		   '\n'
 		   '  from the Bayesian Analysis of Gene EssentiaLity (BAGEL) suite\n'
 		   '  Version ' + str(VERSION) + ' Build ' + str(BUILD) + '\n' 
@@ -36,8 +41,8 @@ helptext_bf = ('\n'
 		   '  required options:\n' 
 		   '     -i  [fold change file]         Tab-delmited file of reagents and fold changes.  See documentation for format.\n' 
 		   '     -o  [output file]              Output filename\n' 
-		   '     -e  [reference essentials]     File with list of training set of essential genes\n' 
-		   '     -n  [reference nonessentials]  File with list of training set of nonessential genes\n' 
+		   '     -e  [reference essentials]     Training set of essential genes (text file)\n' 
+		   '     -n  [reference nonessentials]  Training set of nonessential genes (text file)\n' 
 		   '     -c  [columns to test]          comma-delimited list of columns in input file to include in analyisis\n' 
 		   '\n' 
 		   '  network options\n'
@@ -45,9 +50,9 @@ helptext_bf = ('\n'
 		   ''
 		   '\n'
 		   '  other options:\n'
+		   '     -b, --bootstrapping            Use bootstrapping instead of cross-validation (Slow)\n'
 		   '     --numiter=N                    Number of bootstrap iterations (default 1000)\n'
 		   '     -h, --help                     Show this help text\n'
-		   '     -b, --bootstrapping            Use bootstrapping instead of 10-folds cross-validation (Slow)\n'
 		   '\n'
 		   '  Example:\n' 
 		   '  BAGEL.py analysis -i foldchange_file -o experiment.bf -e essentials_training_set -n nonessentials_training_set -c 1,2,3\n'
@@ -56,9 +61,8 @@ helptext_bf = ('\n'
 		   '  writes to [output file]: gene name, mean Bayes Factor across all iterations, std deviation of BFs, and number of iterations\n'
 		   '  in which the gene was part of the test set (and a BF was calculated[output file]\n' 
 		   '\n')
-
-
-helptext_fc = ('\n'
+	elif (arg=='fc'):
+		return ('\n'
 		   'BAGEL.py fc -i [read count file] -o [output label] -c [control column]\n' 
 		   '\n'
 		   '  from the Bayesian Analysis of Gene EssentiaLity (BAGEL) suite\n'
@@ -70,7 +74,7 @@ helptext_fc = ('\n'
 		   '     -c  [control column]           Control (T0 or plasmid) column\n'
 		   '\n' 
 		   '  other options:\n'
-		   '     --minreads=N                   Discard gRNA with T0 counts < N (default 30)\n'
+		   '     --minreads=N                   Discard gRNA with T0 counts < N (default 0)\n'
 		   '     --pseudo=N	                    Add a pseudocount of N to every readcount (default 5)\n'
 		   '     -h, --help                     Show this help text\n'
 		   '\n'
@@ -80,19 +84,58 @@ helptext_fc = ('\n'
 		   '  Filters readcount_file for reagents with at least 30 reads in the control sample,\n'
 		   '  calculates fold change, and writes [output label].foldchange and [output label].normalized_reads\n'
 		   '\n')
+	elif (arg=='pr'):
+		return ('\n'
+		   'BAGEL.py pr -i [Bayes factors] -o [output file] -e [reference essentials] -n [reference nonessentials]\n' 
+		   '\n'
+		   '  from the Bayesian Analysis of Gene EssentiaLity (BAGEL) suite\n'
+		   '  Version ' + str(VERSION) + '\n' 
+           '  required options:\n' 
+           '     -i  [Bayes factors]            BAGEL output file.\n' 
+           '     -o  [output file]              Output filename\n' 
+           '     -e  [reference essentials]     File with list of training set of essential genes\n' 
+           '     -n  [reference nonessentials]  File with list of training set of nonessential genes\n' 
+           '\n' 
+           '  Example:\n' 
+           '  calc-PR-of-BFs.py -i input.bf -o output.PR -e ref_essentials -n ref_nonessentials\n' 
+           '\n')
+
 
 if len(sys.argv) < 2:
-	print helptext_main
+	print helptext('main')
 	sys.exit(2)
 
+# ------------------------------------
+
+import numpy as np
+import pandas as pd
+import scipy.stats as stats
+from matplotlib.mlab import find
+
+
+#-------------------------------------------#
+#   SET CONTSTANTS; INITIALIZE VARIABLES    #
+#-------------------------------------------#
+	
+# for bf:
+NUM_BOOTSTRAPS = 1000
+NETWORKBOOST = False
+TRAINMETHOD = 1   # 0 == bootstrapping, 1 == cross-validation (default)
+TESTMODE = False
+check=0
+
+# for fc:
+MIN_READS = 0
+pseudo = 5
+
+
+#-------------------------------------------#
+#											#
+#   CALCULATE FOLD CHANGE FROM RAW READS    #
+#											#
+#-------------------------------------------#
+
 if sys.argv[1] == 'fc':
-	
-	#-------------------------------------------#
-	#   SET CONTSTANTS; INITIALIZE VARIABLES    #
-	#-------------------------------------------#
-	
-	MIN_READS = 30
-	pseudo = 5
 	
 	#----------------------------------#
 	#   READ COMMAND LINE ARGUMENTS    #
@@ -101,10 +144,10 @@ if sys.argv[1] == 'fc':
 	try:
 		opts, args = getopt.getopt(sys.argv[2:], "hi:o:c:", ["minreads=","pseudo=","help"])
 	except getopt.GetoptError:
-		print helptext_fc
+		print helptext('fc')
 		sys.exit(2)
 	if len(opts) == 0:
-		print helptext_fc
+		print helptext('fc')
 		sys.exit(2)
 	for opt, arg in opts:
 		if opt in ( '-h', '--help'):
@@ -121,14 +164,14 @@ if sys.argv[1] == 'fc':
 		elif opt == '--pseudo':
 			pseudo = float(arg)
 		else:
-			print helptext_fc
+			print helptext('fc')
 			print "Error! Unknown arguments"
 			sys.exit(2)
+
 	#----------------------------------------------------------------#
 	# Import raw read data, normalize, filter for T0 min readcounts  #
 	# Output:   [output label].foldchange                            #
 	#----------------------------------------------------------------#
-	
 	
 	from numpy import *
 	import scipy.stats as stats
@@ -190,21 +233,22 @@ if sys.argv[1] == 'fc':
 	normed.to_csv( normedreads_filename, sep='\t', float_format='%3.2f')
 	
 
-elif sys.argv[1] == 'analysis':
 
-	
-	NUM_BOOTSTRAPS = 1000
-	NETWORKBOOST = False
-	TRAINMETHOD = 1   # 0 == bootstrapping, 1 == cross-validation (default)
-	TESTMODE = False
-	check=0
+#-------------------------------------------#
+#											#
+#  CALCULATE BAYES FACTOR FROM FOLDCHANGE   #
+#											#
+#-------------------------------------------#
+
+elif sys.argv[1] == 'bf':
+
 	try:
 		opts, args = getopt.getopt(sys.argv[2:], "hti:o:c:e:n:w:b", ["numiter=","help","bootstrapping"])
 	except getopt.GetoptError:
-		print helptext_bf
+		print helptext('bf')
 		sys.exit(2)
 	if len(opts) == 0:
-		print helptext_bf
+		print  helptext('bf')
 		sys.exit(2)
 	for opt, arg in opts:
 		if opt in ( '-h', '--help'):
@@ -234,7 +278,7 @@ elif sys.argv[1] == 'analysis':
 		elif opt in ('-t'):
 			TESTMODE = True
 		else:
-			print helptext_bf
+			print helptext('bf')
 			print "Error! Unknown arguments"
 			sys.exit(2)
 	try:
@@ -242,7 +286,7 @@ elif sys.argv[1] == 'analysis':
 	except:
 		outfilename = foldchangefile.replace(" ","_") + ".bf"
 	if check!=3:
-		print helptext_bf
+		print helptext('fc')
 		print "Error! Missing arguments"
 		sys.exit(2)
 	from numpy import *
@@ -260,7 +304,7 @@ elif sys.argv[1] == 'analysis':
 	def round_to_hundredth(x):
 		return round( x*100) / 100.0
 		
-	def func_liner(x, a, b):
+	def func_linear(x, a, b):
 		return (a * x) + b
 			
 	class Training:
@@ -318,7 +362,7 @@ elif sys.argv[1] == 'analysis':
 	#
 	# LOAD FOLDCHANGES
 	#
-	
+
 	with open(foldchangefile) as fin:
 		skipfields = fin.readline().rstrip().split('\t')
 		for i in column_list:
@@ -333,7 +377,6 @@ elif sys.argv[1] == 'analysis':
 				fc[gsym].append( float(fields[i + 1]))		# per user docs, GENE is column 0, first data column is col 1.
 	genes_array = array( genes.keys() )
 	gene_idx = arange( len( genes ) )
-	#print "Number of gRNA loaded:  " + str( len(genes_array) )
 	print "Number of unique genes:  " + str( len(genes) )
 	
 	#
@@ -342,6 +385,7 @@ elif sys.argv[1] == 'analysis':
 	coreEss = []
 	
 	with open(ess_ref) as fin:
+		skip_header = fin.readline()
 		for line in fin:
 			coreEss.append( line.rstrip().split('\t')[0] )
 	coreEss=array(coreEss)
@@ -349,6 +393,7 @@ elif sys.argv[1] == 'analysis':
 	
 	nonEss = []
 	with open(non_ref) as fin:
+		skip_header = fin.readline()
 		for line in fin:
 			nonEss.append( line.rstrip().split('\t')[0] )
 	
@@ -615,6 +660,86 @@ elif sys.argv[1] == 'analysis':
 		else:
 			fout.write('{0:s}\t{1:4.3f}\t{2:4.3f}\t{3:d}\n'.format( g, float(bf_mean[g]), float(bf_std[g]), num_obs ) )
 	fout.close()
+
+
+
+#-------------------------------------------#
+#											#
+#    CALCULATE PRECISION-RECALL CURVES      #
+#											#
+#-------------------------------------------#
+
+elif sys.argv[1] == 'pr':
+	try:
+		opts, args = getopt.getopt(sys.argv[2:], "hti:o:c:e:n:w:b", ["numiter=","help","bootstrapping"])
+	except getopt.GetoptError:
+		print helptext('pr')
+		sys.exit(2)
+	if len(opts) == 0:
+		print  helptext('pr')
+		sys.exit(2)
+	for opt, arg in opts:
+		if opt in ( '-h', '--help'):
+			print helptext
+			sys.exit()
+		elif opt == '-i':
+			bf_file = arg
+			check+=1
+		elif opt == '-o':
+			outfilename = arg
+		elif opt == '-e':
+			check+=1
+			ess_ref = arg
+		elif opt == '-n':
+			check+=1
+			non_ref = arg
+		else:
+			print helptext('bf')
+			print "Error! Unknown arguments"
+			sys.exit(2)
+	try:
+		outfilename
+	except:
+		outfilename = foldchangefile.replace(" ","_") + ".pr"
+	if check!=3:
+		print helptext('pr')
+		print "Error! Missing arguments"
+		sys.exit(2)
+	#
+	# test for availability of all files
+	#
+	essentials = pd.read_table(ess_ref, index_col=0)
+	nonessentials = pd.read_table(non_ref, index_col=0)
+	bf = pd.read_table(bf_file, index_col=0)
+	fout = open(outfilename, 'w')
+
+	bf.sort_values(by='BF', ascending=False, inplace=True)
+
+	cumulative_tp = 0.
+	cumulative_fp = 0.
+	precision = 1.
+	recall = 0.
+	# note float formats
+
+	ess = essentials.index.values
+	non = nonessentials.index.values
+	totNumEssentials = len( [x for x in bf.index.values if x in ess] )
+
+
+	fout.write('Gene\tBF\tRecall\tPrecision\n')
+
+	for g in bf.index.values:
+	    if ( g in ess ):
+	        cumulative_tp += 1
+	    elif (g in non):
+	        cumulative_fp += 1
+	    recall = cumulative_tp / totNumEssentials
+	    if ( (cumulative_tp>0) | ( cumulative_fp > 0) ):
+	        precision = cumulative_tp / (cumulative_tp + cumulative_fp)
+	    fout.write('{0:s}\t{1:4.3f}\t{2:4.3f}\t{3:4.3f}\n'.format( g, bf.ix[g,'BF'], recall, precision) )
+		
+	fout.close()
+
 else:
 	print helptext_main
 	sys.exit(2)
