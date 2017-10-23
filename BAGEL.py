@@ -1,7 +1,7 @@
 #!/usr/bin/env python 
 
 VERSION = 2.0
-BUILD = 108
+BUILD = 109
 
 #---------------------------------
 # BAGEL:  Bayesian Analysis of Gene EssentaLity
@@ -188,7 +188,7 @@ if sys.argv[1] == 'fc':
 	# missing gene name = replace
 	# missing read count = zero count
 	#
-	reads[ reads.columns.values[1] ].fillna('NO_GENE_NAME', inplace=True)
+	reads[ reads.columns.values[0] ].fillna('NO_GENE_NAME', inplace=True)
 	reads.fillna(0, inplace=True)
 	
 	#
