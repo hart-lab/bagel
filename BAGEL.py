@@ -19,7 +19,7 @@ Build 110
 #---------------------------------
 # BAGEL:  Bayesian Analysis of Gene EssentaLity
 # (c) Traver Hart <traver@hart-lab.org>, Eiru Kim <rooeikim@gmail.com> 2017.
-# modified 10/2017
+# modified 12/2019
 # Free to modify and redistribute with attribtuion
 #---------------------------------
 
