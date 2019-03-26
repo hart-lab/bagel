@@ -1,7 +1,20 @@
 #!/usr/bin/env python 
 
 VERSION = 2.0
-BUILD = 109
+BUILD = 111
+
+'''
+Update history
+
+Build 111
+1. Add an option to equalize # of sgRNA per gene
+
+Build 110
+1. Enable multi control for fold-change calculation
+2. Now user can input column names
+3. Fix Threshold function
+
+'''
 
 #---------------------------------
 # BAGEL:  Bayesian Analysis of Gene EssentaLity
@@ -51,8 +64,12 @@ def helptext(arg):
 		   '\n'
 		   '  other options:\n'
 		   '     -b, --bootstrapping            Use bootstrapping instead of cross-validation (Slow)\n'
+		   '     -s, --small-sample             Low-fat BAGEL, Only resampled training set (Bootstrapping, iteration = 100)\n'
+		   '     -r                             Calculate sgRNA-wise Bayes Factor\n'
+		   '     -f  [Number]                   Equalize the number of sgRNAs per gene\n'
 		   '     --numcv=N                      Number of sections for cross validation (default 10)\n'
-	       '     --numiter=N                    Number of bootstrap iterations (default 1000)\n'
+		   '     --numiter=N                    Number of bootstrap iterations (default 1000)\n'
+		   '     --seed=N                       Define random seed\n'
 		   '     -h, --help                     Show this help text\n'
 		   '\n'
 		   '  Example:\n' 
@@ -72,7 +89,7 @@ def helptext(arg):
 		   '  required options:\n' 
 		   '     -i  [read count file]          Tab-delmited file of reagents and fold changes.  See documentation for format.\n' 
 		   '     -o  [output label]             Label for all output files\n' 
-		   '     -c  [control column]           Control (T0 or plasmid) column\n'
+		   '     -c  [control column]           comma-delimited list of columns of control (T0 or plasmid) columns (Either number or name)\n'
 		   '\n' 
 		   '  other options:\n'
 		   '     --minreads=N                   Discard gRNA with T0 counts < N (default 0)\n'
@@ -82,7 +99,6 @@ def helptext(arg):
 		   '  Example:\n' 
 		   '  BAGEL.py fc -i readcount_file -o experiment_name -c 1\n' 
 		   '\n'
-		   '  Filters readcount_file for reagents with at least 30 reads in the control sample,\n'
 		   '  calculates fold change, and writes [output label].foldchange and [output label].normalized_reads\n'
 		   '\n')
 	elif (arg=='pr'):
@@ -91,15 +107,18 @@ def helptext(arg):
 		   '\n'
 		   '  from the Bayesian Analysis of Gene EssentiaLity (BAGEL) suite\n'
 		   '  Version ' + str(VERSION) + '\n' 
-           '  required options:\n' 
-           '     -i  [Bayes factors]            BAGEL output file.\n' 
-           '     -o  [output file]              Output filename\n' 
-           '     -e  [reference essentials]     File with list of training set of essential genes\n' 
-           '     -n  [reference nonessentials]  File with list of training set of nonessential genes\n' 
-           '\n' 
-           '  Example:\n' 
-           '  BAGEL.py pr -i input.bf -o output.PR -e ref_essentials -n ref_nonessentials\n' 
-           '\n')
+		   '  required options:\n' 
+		   '     -i  [Bayes factors]            BAGEL output file.\n' 
+		   '     -o  [output file]              Output filename\n' 
+		   '     -e  [reference essentials]     File with list of training set of essential genes\n' 
+		   '     -n  [reference nonessentials]  File with list of training set of nonessential genes\n' 
+		   '\n'
+		   '  other options:\n'
+		   '     -k [column name]               Use other column (default \'BF\')'
+		   '\n'
+		   '  Example:\n' 
+		   '  BAGEL.py pr -i input.bf -o output.PR -e ref_essentials -n ref_nonessentials\n' 
+		   '\n')
 
 
 if len(sys.argv) < 2:
@@ -124,7 +143,10 @@ NUM_BOOTSTRAPS = 1000
 NETWORKBOOST = False
 TRAINMETHOD = 1   # 0 == bootstrapping, 1 == cross-validation (default)
 TESTMODE = False
+SMALLSAMPLE = False
+RNALEVEL = False
 check=0
+FLATSGRNA = False
 
 # for fc:
 MIN_READS = 0
@@ -153,14 +175,14 @@ if sys.argv[1] == 'fc':
 		sys.exit(2)
 	for opt, arg in opts:
 		if opt in ( '-h', '--help'):
-			print helptext
+			print helptext('fc')
 			sys.exit()
 		elif opt == '-i':
 			readcountfile = arg
 		elif opt == '-o':
 			label = arg
 		elif opt == '-c':
-			ctrl_column = int(arg)
+			ctrl_columns = arg.split(",")
 		elif opt == '--minreads':
 			MIN_READS = int(arg)
 		elif opt == '--pseudo':
@@ -181,9 +203,7 @@ if sys.argv[1] == 'fc':
 	
 	reads = pd.read_table(readcountfile, sep='\t', index_col=0)
 	
-	control_label = reads.columns.values[ctrl_column]
-	numClones, numColumns = reads.shape
-	
+
 	#
 	# missing gene name = replace
 	# missing read count = zero count
@@ -191,6 +211,28 @@ if sys.argv[1] == 'fc':
 	reads[ reads.columns.values[0] ].fillna('NO_GENE_NAME', inplace=True)
 	reads.fillna(0, inplace=True)
 	
+	#
+	# check controls
+	#
+
+	try:
+		try:
+			ctrl_columns = map(int,ctrl_columns)
+			ctrl_labels = reads.columns.values[ctrl_columns]
+		except ValueError:
+			ctrl_labels = ctrl_columns
+			
+		ctrl_sum = reads[ctrl_labels].sum(axis=1)
+		reads.drop(ctrl_labels,axis=1,inplace=True)
+		ctrl_label_new = ';'.join(ctrl_labels)
+		reads[ctrl_label_new] = ctrl_sum
+	except:
+		print "Invalid controls"
+		sys.exit(2)
+	
+	numClones, numColumns = reads.shape
+	print "Controls: " + ", ".join(ctrl_labels)
+
 	#
 	# Add pseudo count
 	#
@@ -208,7 +250,7 @@ if sys.argv[1] == 'fc':
 	#
 	# filter for minimum readcount
 	#
-	f = where( reads.ix[:,ctrl_column ] >= MIN_READS )[0]
+	f = where( reads[ ctrl_label_new ] >= MIN_READS )[0]
 	normed = normed.ix[f,:]
 	
 	#
@@ -218,11 +260,11 @@ if sys.argv[1] == 'fc':
 	foldchange.index.name = 'REAGENT_ID'
 	foldchange['GENE'] = reads.ix[f,0]				# dataframe 'normed' has no GENE column
 	for i in range( numColumns -1 ):			
-		foldchange[ normed.columns.values[i] ] = log2( (normed.ix[:,normed.columns.values[i] ])   / normed.ix[:,control_label] )
+		foldchange[ normed.columns.values[i] ] = log2( (normed.ix[:,normed.columns.values[i] ])   / normed[ctrl_label_new])
 	#
 	# we have calculated a foldchange for the control column.  Drop it.
 	#
-	foldchange.drop( control_label, axis=1, inplace=True)
+	foldchange.drop( ctrl_label_new, axis=1, inplace=True)
 	
 	#
 	# write normed readcount file
@@ -244,8 +286,17 @@ if sys.argv[1] == 'fc':
 
 elif sys.argv[1] in ['bf','analysis']:
 
+	from numpy import *
+	import scipy.stats as stats
+	import pandas as pd
+	
+	import time
+	seed = int(time.time() * 100000 % 100000)
+	random.seed(seed) # set random seed
+
+
 	try:
-		opts, args = getopt.getopt(sys.argv[2:], "hti:o:c:e:n:w:b", ["numcv=","numiter=","help","bootstrapping"])
+		opts, args = getopt.getopt(sys.argv[2:], "hti:o:c:e:n:w:f:bsr", ["numcv=","numiter=","help","bootstrapping","small-sample","seed="])
 	except getopt.GetoptError:
 		print helptext('bf')
 		sys.exit(2)
@@ -254,7 +305,7 @@ elif sys.argv[1] in ['bf','analysis']:
 		sys.exit(2)
 	for opt, arg in opts:
 		if opt in ( '-h', '--help'):
-			print helptext
+			print helptext('bf')
 			sys.exit()
 		elif opt == '-i':
 			foldchangefile = arg
@@ -273,6 +324,9 @@ elif sys.argv[1] in ['bf','analysis']:
 			NUM_BOOTSTRAPS = int(arg)
 		elif opt == '--numcv':
 			NUMCV = int(arg)
+		elif opt == '--seed':
+			seed = int(arg)
+			random.seed(seed)
 		elif opt == '-w':
 			NETWORKBOOST = True
 			print "Network boosting enabled"
@@ -281,6 +335,15 @@ elif sys.argv[1] in ['bf','analysis']:
 			TRAINMETHOD = 0
 		elif opt in ('-t'):
 			TESTMODE = True
+		elif opt in ('-s','--small-sample'):
+			SMALLSAMPLE = True
+			TRAINMETHOD = 0
+			NUM_BOOTSTRAPS = 100
+		elif opt == '-r':
+			RNALEVEL=True
+		elif opt == '-f':
+			FLATSGRNA = True
+			NUM_DESIRE_SGRNA = int(arg)
 		else:
 			print helptext('bf')
 			print "Error! Unknown arguments"
@@ -293,16 +356,18 @@ elif sys.argv[1] in ['bf','analysis']:
 		print helptext('bf')
 		print "Error! Missing arguments"
 		sys.exit(2)
-	from numpy import *
-	import scipy.stats as stats
-	import pandas as pd
-	import random as rd
 	
 	
-	column_list = [int(c) for c in columns]
+	if NETWORKBOOST == True and RNALEVEL==True:
+		NETWORKBOOST = False
+		print "# Network boosting is disabled in RNA-wise output"
 	
+	print 'Random seed = %d'%seed
+
 	genes={}
 	fc = {}
+	gene2rna = {}
+	rna2gene = {}
 	
 	def round_to_hundredth(x):
 		return round( x*100) / 100.0
@@ -327,12 +392,12 @@ elif sys.argv[1] in ['bf','analysis']:
 			mask = array([True]*self._n)
 			for j in range(self._bid):
 				#drawing.append(delete(self._bucket, random.randrange(len(self._bucket))))
-				select = rd.randrange(len(self._bucket))
+				select = random.randint(len(self._bucket))
 				drawing.append(self._bucket[select])
 				mask[self._bucket[select]] = False
 				self._bucket = delete(self._bucket, select)
 			if self._step < self._n % self._cvnum: # for distribute remain..
-				select = rd.randrange(len(self._bucket))
+				select = random.randint(len(self._bucket))
 				drawing.append(self._bucket[select])
 				mask[self._bucket[select]] = False
 				self._bucket = delete(self._bucket, select)
@@ -371,21 +436,42 @@ elif sys.argv[1] in ['bf','analysis']:
 	#
 
 	with open(foldchangefile) as fin:
-		skipfields = fin.readline().rstrip().split('\t')
-		for i in column_list:
-			print "Using column:  " + skipfields[i+1]
+		fieldname = fin.readline().rstrip().split('\t')
+		#
+		# DEFINE CONTROLS
+		#
+		try:
+			try:
+				column_list = map(int,columns)
+				column_labels = [ fieldname[x+1] for x in column_list ]
+			except ValueError:
+				column_labels = columns
+				column_list = [ x for x in range(len(fieldname) - 1) if fieldname[ x + 1] in column_labels]   # +1 because of First column start 2
+			print "Using column:  " + ", ".join(column_labels)
+			#print "Using column:  " + ", ".join(map(str,column_list))
+			
+		except:
+			print "Invalid columns"
+			sys.exit(2)
+
 		for line in fin:
 			fields = line.rstrip().split('\t')
+			rnatag = fields[0]
 			gsym = fields[1]
+
 			genes[ gsym ]=1
-			if ( not gsym in fc ):
-				fc[gsym]=[]    # initialize dict entry as a list
+			if gsym not in gene2rna:
+				gene2rna[gsym]=[]
+			gene2rna[gsym].append(rnatag)
+			rna2gene[rnatag] = gsym
+			fc[rnatag] = {}
 			for i in column_list:
-				fc[gsym].append( float(fields[i + 1]))		# per user docs, GENE is column 0, first data column is col 1.
+				fc[rnatag][i] = float(fields[i + 1])		# per user docs, GENE is column 0, first data column is col 1.
+			
 	genes_array = array( genes.keys() )
 	gene_idx = arange( len( genes ) )
 	print "Number of unique genes:  " + str( len(genes) )
-	
+
 	#
 	# DEFINE REFERENCE SETS
 	#
@@ -430,18 +516,25 @@ elif sys.argv[1] in ['bf','analysis']:
 	#
 	# INITIALIZE BFS
 	#
-	FC_THRESH = 2**(-1.1535*log(len(in1d(genes_array,nonEss))+13.324) + 0.7728)  #Define foldchange dynamic threshold. logarithm decay. parameters are defined by regression (achilles data)  2**-7 was used in previous version.
+	FC_THRESH = 2**(-1.1535*log(len(intersect1d(genes_array,nonEss))+13.324) + 0.7728)  #Define foldchange dynamic threshold. logarithm decay. parameters are defined by regression (achilles data)  2**-7 was used in previous version.
 	bf = {}
 	boostedbf = {}
 	for g in genes_array:
-		bf[g]=[]
-		boostedbf[g] = []
+		for rnatag in gene2rna[g]:
+			bf[rnatag]=[]
+				
+		boostedbf[g] = [] # boosted bf at gene level
 	
 	#
 	# TRAINING
 	#
+	if SMALLSAMPLE == True:
+		#training_data = Training(setdiff1d(gene_idx,where(in1d(genes_array,coreEss))),cvnum=NUMCV)  # declare training class
+		training_data = Training(where(in1d(genes_array,union1d(coreEss,nonEss)))[0],cvnum=NUMCV)  # declare training class (only for Gold-standard gene set)
+		all_non_gs = where( logical_not( in1d(genes_array,union1d(coreEss,nonEss)) ) )[0] # all non-goldstandards
+	else:
+		training_data = Training(gene_idx,cvnum=NUMCV)  # declare training class
 	
-	training_data = Training(gene_idx,cvnum=NUMCV)  # declare training class
 	if TRAINMETHOD == 0:
 		LOOPCOUNT = NUM_BOOTSTRAPS
 	elif TRAINMETHOD == 1:
@@ -465,9 +558,14 @@ elif sys.argv[1] in ['bf','analysis']:
 		# test set for this iteration is everything not selected in bootstrap resampled (10-folds cross-validation) training set
 		# define essential and nonessential training sets:  arrays of indexes
 		#
+
 		gene_train_idx,gene_test_idx = training_data.get_data(TRAINMETHOD)
+		if SMALLSAMPLE == True: # test set is union of rest of training set (gold-standard) and the other genes (all of non-gold-standard)
+			gene_test_idx = union1d( gene_test_idx, all_non_gs  )
+
 		if TESTMODE == True:
 			fp.write("%d\n%s\n%s\n"%(loop,",".join(genes_array[gene_train_idx]),",".join(genes_array[gene_test_idx])))
+
 		
 		train_ess = where( in1d( genes_array[gene_train_idx], coreEss))[0]
 		train_non = where( in1d( genes_array[gene_train_idx], nonEss))[0]
@@ -478,13 +576,13 @@ elif sys.argv[1] in ['bf','analysis']:
 		#
 		# define ess_train: vector of observed fold changes of essential genes in training set
 		#
-		ess_train_fc_list_of_lists = [ fc[x] for x in genes_array[gene_train_idx[train_ess]] ]
-		ess_train_fc_flat_list = [obs for sublist in ess_train_fc_list_of_lists for obs in sublist]
+		ess_train_fc_list_of_lists = [ fc[rnatag] for g in genes_array[gene_train_idx[train_ess]] for rnatag in gene2rna[g] ]
+		ess_train_fc_flat_list = [obs for sublist in ess_train_fc_list_of_lists for obs in sublist.values()]
 		#
 		# define non_train vector of observed fold changes of nonessential genes in training set
 		#
-		non_train_fc_list_of_lists = [ fc[x] for x in genes_array[gene_train_idx[train_non]] ]
-		non_train_fc_flat_list = [obs for sublist in non_train_fc_list_of_lists for obs in sublist]
+		non_train_fc_list_of_lists = [ fc[rnatag] for g in genes_array[gene_train_idx[train_non]] for rnatag in gene2rna[g] ]
+		non_train_fc_flat_list = [obs for sublist in non_train_fc_list_of_lists for obs in sublist.values()]
 		#
 		# calculate empirical fold change distributions for both
 		#
@@ -517,38 +615,78 @@ elif sys.argv[1] in ['bf','analysis']:
 		# liner interpolation
 		testx=list()
 		testy=list()
+
 		for g in genes_array[gene_train_idx]:
-			for foldchange in array(fc[g]):
-				if foldchange >= xmin and foldchange <= xmax:
-					testx.append(round(foldchange*100)/100)  
-					testy.append(logratio_lookup[round(foldchange*100)][0])
-					
-		slope, intercept, r_value, p_value, std_err = stats.linregress(array(testx),array(testy))
+			for rnatag in gene2rna[g]:
+				for foldchange in fc[rnatag].values():
+					if foldchange >= xmin and foldchange <= xmax:
+						testx.append(round(foldchange*100)/100)  
+						testy.append(logratio_lookup[round(foldchange*100)][0])
+		try:
+			slope, intercept, r_value, p_value, std_err = stats.linregress(array(testx),array(testy))
+		except:
+			print "Regression failed. Check quality of the screen"
+			sys.exit(2)
 		#
 		# BF calculation
 		#
+
 		for g in genes_array[gene_test_idx]:
-			foldchanges = array( fc[g] )
-			bayes_factor = 0.0
-			for x in foldchanges:
-				bayes_factor += slope * x + intercept
-			bf[g].append(bayes_factor)
+			for rnatag in gene2rna[g]:
+				bayes_factor = []
+				for rep in column_list:
+					bayes_factor.append( slope * fc[rnatag][rep] + intercept )
+				bf[rnatag].append(bayes_factor)
+
 		
+			
 	if TESTMODE == True:
 		fp.close()
-	bf_mean = dict()
-	bf_std = dict()
-	bf_norm = dict()
+
+
+	num_obs = dict()
+	if RNALEVEL==False:
+		bf_mean = dict()  
+		bf_std = dict() 
+		bf_norm = dict()  # sgRNA number complement
+	elif RNALEVEL==True:
+		bf_mean_rna_rep = dict()
+		bf_std_rna_rep = dict() 
+		#bf_norm_rna_rep = dict()  
 	
-	for g in sorted( bf.keys() ):
-		num_obs = len( bf[g] )
-		bf_mean[g] = mean( bf[g] )
-		bf_std[g]  = std( bf[g] )
-		if bf_std[g] == 0.0:
-			bf_norm[g] = ( bf[g] - bf_mean[g] )
-		else:
-			bf_norm[g] = ( bf[g] - bf_mean[g] ) / bf_std[g]
 	
+	
+	for g in gene2rna:
+		num_obs[g] = len(  bf[  gene2rna[g][0] ]  )
+		if RNALEVEL==True:
+			for rnatag in gene2rna[g]:
+				bf_mean_rna_rep[rnatag] = dict()
+				bf_std_rna_rep[rnatag] = dict()
+				t = zip(*bf[rnatag])
+				for rep in range(len(column_list)):
+					bf_mean_rna_rep[rnatag][column_list[rep]] = mean(t[rep])
+					bf_std_rna_rep[rnatag][column_list[rep]] = std(t[rep])
+
+		elif RNALEVEL==False:
+			sumofbf_list = list()
+			for i in range( num_obs[g] ):
+				sumofbf = 0.0
+				for rnatag in gene2rna[g]:
+					sumofbf += sum(bf[rnatag][i])
+				sumofbf_list.append(sumofbf)  # append each iter
+			bf_mean[g] = mean(sumofbf_list)
+			bf_std[g] = std(sumofbf_list)
+			if FLATSGRNA == True:
+				multiple_factor = NUM_DESIRE_SGRNA / float(len(gene2rna[g]))
+				bf_norm[g] = mean(sumofbf_list) * multiple_factor
+
+
+	'''			
+	if bf_std[rnatag] == 0.0:
+		bf_norm[rnatag] = float('inf')
+	else:
+		bf_norm[g] = ( bf[rnatag] - bf_mean[rnatag] ) / bf_std[rnatag]
+	'''	
 	training_data = Training(gene_idx)  # set training class reset
 	
 	
@@ -556,10 +694,11 @@ elif sys.argv[1] in ['bf','analysis']:
 	# calculate network scores
 	#
 
-	if NETWORKBOOST == True:
+	if NETWORKBOOST == True and RNALEVEL==False:  # Network boost is only working for gene level	
 		if TESTMODE == True: # TEST MODE
 			fp = open(outfilename+".netscore","w")
 		print "\nNetwork score calculation start\n"
+
 		networkscores = {}
 		for g in genes_array[gene_idx]:
 			if g in network:
@@ -645,27 +784,64 @@ elif sys.argv[1] in ['bf','analysis']:
 					nbf = 0.0
 					
 				boostedbf[g].append(bf_mean[g] + nbf)
+				if FLATSGRNA == True:
+					boostedbf[g].append(bf_norm[g] + nbf)
 	
 		if TESTMODE == True:
 			fp.close()
+	
 	#
 	# print out results
 	#
 
 	fout = open(outfilename, 'w')
-	if NETWORKBOOST == True:
-		fout.write('GENE\tBoostedBF\tSTD_BoostedBF\tBF\tSTD\tNumObs\n')
-	else:
-		fout.write('GENE\tBF\tSTD\tNumObs\n')
-	for g in sorted( bf.keys() ):
-		num_obs = len( bf[g] )
+	
+	if RNALEVEL == True:
+		fout.write('RNA\tGENE')
+		for i in range(len(column_list)):
+			fout.write('\t{0:s}\t{1:s}'.format(column_labels[i], column_labels[i]+"_STD"))
+		fout.write('\tBF')
+		if TRAINMETHOD == 0:	
+			fout.write('\tNumObs')
+		fout.write('\n')
 		
+		for rnatag in sorted( bf.keys() ):
+		
+			fout.write('{0:s}\t'.format(rnatag)) # RNA tag
+			gene = rna2gene[rnatag]
+			fout.write('{0:s}\t'.format( gene) )
+			for rep in column_list:
+				fout.write('{0:4.3f}\t{1:4.3f}\t'.format(bf_mean_rna_rep[rnatag][rep],bf_std_rna_rep[rnatag][rep]))
+
+			fout.write('{0:4.3f}\t{1:d}\n'.format( float(sum(bf_mean_rna_rep[rnatag].values())), num_obs[gene] ))
+	else:
+		fout.write('GENE')
 		if NETWORKBOOST == True:
-			boostedbf_mean = mean( boostedbf[g] )
-			boostedbf_std  = std( boostedbf[g] )
-			fout.write('{0:s}\t{1:4.3f}\t{2:4.3f}\t{3:4.3f}\t{4:4.3f}\t{5:d}\n'.format( g, float(boostedbf_mean), float(boostedbf_std), float(bf_mean[g]), float(bf_std[g]), num_obs ) )
-		else:
-			fout.write('{0:s}\t{1:4.3f}\t{2:4.3f}\t{3:d}\n'.format( g, float(bf_mean[g]), float(bf_std[g]), num_obs ) )
+			fout.write('\tBoostedBF')
+			if TRAINMETHOD == 0:
+				fout.write('\tSTD_BoostedBF')
+		fout.write('\tBF')
+		if TRAINMETHOD == 0:
+			fout.write('\tSTD\tNumObs')
+		if FLATSGRNA == True:
+			fout.write('\tNormBF')
+		fout.write('\n')
+
+		for g in sorted( genes.keys() ):
+			fout.write('{0:s}'.format( g ))
+			if NETWORKBOOST == True:
+				boostedbf_mean = mean( boostedbf[g] )
+				boostedbf_std  = std( boostedbf[g] )
+				fout.write('\t{0:4.3f}'.format( float(boostedbf_mean) ))
+				if TRAINMETHOD == 0:
+					fout.write('\t{0:4.3f}'.format( float(boostedbf_std) ))
+			fout.write('\t{0:4.3f}'.format( float(bf_mean[g]) ))
+			if TRAINMETHOD == 0:
+				fout.write('\t{0:4.3f}\t{1:d}'.format( float(bf_std[g]), num_obs[g] ) )
+			if FLATSGRNA == True:
+				fout.write('\t{0:4.3f}'.format( float(bf_norm[g]) ) )
+			
+			fout.write('\n')
 	fout.close()
 
 
@@ -677,8 +853,9 @@ elif sys.argv[1] in ['bf','analysis']:
 #-------------------------------------------#
 
 elif sys.argv[1] == 'pr':
+	BFCOL = 'BF'
 	try:
-		opts, args = getopt.getopt(sys.argv[2:], "hti:o:c:e:n:w:b", ["numiter=","help","bootstrapping"])
+		opts, args = getopt.getopt(sys.argv[2:], "htk:i:o:c:e:n:w:b", ["numiter=","help","bootstrapping"])
 	except getopt.GetoptError:
 		print helptext('pr')
 		sys.exit(2)
@@ -687,7 +864,7 @@ elif sys.argv[1] == 'pr':
 		sys.exit(2)
 	for opt, arg in opts:
 		if opt in ( '-h', '--help'):
-			print helptext
+			print helptext('pr')
 			sys.exit()
 		elif opt == '-i':
 			bf_file = arg
@@ -697,6 +874,8 @@ elif sys.argv[1] == 'pr':
 		elif opt == '-e':
 			check+=1
 			ess_ref = arg
+		elif opt == '-k':
+			BFCOL = str(arg)
 		elif opt == '-n':
 			check+=1
 			non_ref = arg
@@ -718,9 +897,14 @@ elif sys.argv[1] == 'pr':
 	essentials = pd.read_table(ess_ref, index_col=0)
 	nonessentials = pd.read_table(non_ref, index_col=0)
 	bf = pd.read_table(bf_file, index_col=0)
+
+	if BFCOL not in bf.dtypes.index:
+		print "Error! the column name is not in the file"
+		sys.exit(2)
+		
 	fout = open(outfilename, 'w')
 
-	bf.sort_values(by='BF', ascending=False, inplace=True)
+	bf.sort_values(by=BFCOL, ascending=False, inplace=True)
 
 	cumulative_tp = 0.
 	cumulative_fp = 0.
@@ -733,7 +917,9 @@ elif sys.argv[1] == 'pr':
 	totNumEssentials = len( [x for x in bf.index.values if x in ess] )
 
 
-	fout.write('Gene\tBF\tRecall\tPrecision\n')
+	fout.write('Gene\t')
+	fout.write(BFCOL)
+	fout.write('\tRecall\tPrecision\n')
 
 	for g in bf.index.values:
 	    if ( g in ess ):
@@ -743,11 +929,11 @@ elif sys.argv[1] == 'pr':
 	    recall = cumulative_tp / totNumEssentials
 	    if ( (cumulative_tp>0) | ( cumulative_fp > 0) ):
 	        precision = cumulative_tp / (cumulative_tp + cumulative_fp)
-	    fout.write('{0:s}\t{1:4.3f}\t{2:4.3f}\t{3:4.3f}\n'.format( g, bf.ix[g,'BF'], recall, precision) )
+	    fout.write('{0:s}\t{1:4.3f}\t{2:4.3f}\t{3:4.3f}\n'.format( g, bf.ix[g,BFCOL], recall, precision) )
 		
 	fout.close()
 
 else:
-	print helptext_main
+	print helptext('main')
 	sys.exit(2)
 
