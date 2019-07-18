@@ -1,10 +1,13 @@
 #!/usr/bin/env python 
 
 VERSION = 2.0
-BUILD = 111
+BUILD = 112
 
 '''
 Update history
+
+Build 112
+1. Add sgRNA filtering options
 
 Build 111
 1. Add an option to equalize # of sgRNA per gene
@@ -19,7 +22,7 @@ Build 110
 #---------------------------------
 # BAGEL:  Bayesian Analysis of Gene EssentaLity
 # (c) Traver Hart <traver@hart-lab.org>, Eiru Kim <rooeikim@gmail.com> 2017.
-# modified 12/2019
+# modified 10/2017
 # Free to modify and redistribute with attribtuion
 #---------------------------------
 
@@ -59,8 +62,14 @@ def helptext(arg):
 		   '     -c  [columns to test]          comma-delimited list of columns in input file to include in analyisis\n' 
 		   '\n' 
 		   '  network options\n'
-		   '     -w  [network file]				Enable Network boosting. Tab-delmited file of edges. [GeneA (\\t) GeneB]'
+		   '     -w  [network file]				Enable Network boosting. Tab-delmited file of edges. [GeneA (\\t) GeneB]\n'
 		   ''
+		   '\n'
+		   '  multi-target guides filtering options \n'
+		   '     --align-info  [file]           Input precalculated align-info file\n'
+		   '     -m                             Enable filtering multi-targeting guide RNAs\n'
+		   '       --m0  [Number]                Filtering guide RNAs without mismatch targeting over than [N] loci (default = 10)\n'
+		   '       --m1  [Number]                Filtering guide RNAs with 1-bp mismatch targeting over than [N] loci (default = 10)\n'
 		   '\n'
 		   '  other options:\n'
 		   '     -b, --bootstrapping            Use bootstrapping instead of cross-validation (Slow)\n'
@@ -294,9 +303,13 @@ elif sys.argv[1] in ['bf','analysis']:
 	seed = int(time.time() * 100000 % 100000)
 	random.seed(seed) # set random seed
 
+	MULTI_TARGET_FILTERING = False
+	MULTI_TARGET_FILTERING_on = 10
+	MULTI_TARGET_FILTERING_off = 10
+	aligninfofile = ""
 
 	try:
-		opts, args = getopt.getopt(sys.argv[2:], "hti:o:c:e:n:w:f:bsr", ["numcv=","numiter=","help","bootstrapping","small-sample","seed="])
+		opts, args = getopt.getopt(sys.argv[2:], "hti:o:c:e:n:w:f:mbsr", ["numcv=","numiter=","help","bootstrapping","small-sample","seed=","align-info=","m0=","m1="])
 	except getopt.GetoptError:
 		print helptext('bf')
 		sys.exit(2)
@@ -344,6 +357,18 @@ elif sys.argv[1] in ['bf','analysis']:
 		elif opt == '-f':
 			FLATSGRNA = True
 			NUM_DESIRE_SGRNA = int(arg)
+		elif opt == '-m':
+			MULTI_TARGET_FILTERING = True
+			print "Multi-target filtering enabled"
+		elif opt in ["--m0"]:
+			MULTI_TARGET_FILTERING_on = int(arg)
+		elif opt in ["--m1"]:
+			MULTI_TARGET_FILTERING_off = int(arg)
+		elif opt == '--align-info':
+			aligninfofile = arg
+
+
+
 		else:
 			print helptext('bf')
 			print "Error! Unknown arguments"
@@ -352,12 +377,19 @@ elif sys.argv[1] in ['bf','analysis']:
 		outfilename
 	except:
 		outfilename = foldchangefile.replace(" ","_") + ".bf"
+	
+	### Check arguments
+
 	if check!=3:
 		print helptext('bf')
 		print "Error! Missing arguments"
 		sys.exit(2)
 	
-	
+	if MULTI_TARGET_FILTERING==True and aligninfofile == "":
+		print helptext('bf')
+		print "Error! Please indicate align-info file"
+		sys.exit(2)
+
 	if NETWORKBOOST == True and RNALEVEL==True:
 		NETWORKBOOST = False
 		print "# Network boosting is disabled in RNA-wise output"
@@ -430,7 +462,42 @@ elif sys.argv[1] in ['bf','analysis']:
 			p1 = c
 			c = p1 + p2
 		return value
+
+	#
+	# LOAD ALIGN INFO FILE 
+	#
+
+	multi_targeting_sgrnas = dict()
+	multi_targeting_sgrnas_info = dict()
 	
+	if MULTI_TARGET_FILTERING == True:
+		from sklearn.linear_model import LinearRegression 
+		try:
+			aligninfo = pd.read_table(aligninfofile,header=None,index_col=0).fillna("")
+			for seqid in aligninfo.index:
+				perfectmatch = 0
+				mismatch_1bp = 0
+				perfectmatch_gene = 0
+				mismatch_1bp_gene = 0
+				if aligninfo[1][seqid] != "":
+					perfectmatch = len(aligninfo[1][seqid].split(","))
+				if aligninfo[2][seqid] != "":
+					perfectmatch_gene = len(aligninfo[2][seqid].split(","))
+				if aligninfo[3][seqid] != "":
+					mismatch_1bp = len(aligninfo[3][seqid].split(","))
+				if aligninfo[4][seqid] != "":
+					mismatch_1bp_gene = len(aligninfo[4][seqid].split(","))
+				if perfectmatch > MULTI_TARGET_FILTERING_on or mismatch_1bp > MULTI_TARGET_FILTERING_off:
+					multi_targeting_sgrnas[seqid] = True
+				elif perfectmatch > 1 or mismatch_1bp > 0:
+					multi_targeting_sgrnas_info[seqid] = (perfectmatch, mismatch_1bp, perfectmatch_gene, mismatch_1bp_gene)
+
+		except:
+			print "Please check align-info file"
+			sys.exit(2)
+
+		print "Total %d multi-targeting gRNAs are discarded"%len(multi_targeting_sgrnas)		
+
 	#
 	# LOAD FOLDCHANGES
 	#
@@ -457,6 +524,9 @@ elif sys.argv[1] in ['bf','analysis']:
 		for line in fin:
 			fields = line.rstrip().split('\t')
 			rnatag = fields[0]
+			if MULTI_TARGET_FILTERING == True:  # multitargeting sgrna filtering
+				if rnatag in multi_targeting_sgrnas:
+					continue    # skip multitargeting sgrna.
 			gsym = fields[1]
 
 			genes[ gsym ]=1
@@ -467,6 +537,8 @@ elif sys.argv[1] in ['bf','analysis']:
 			fc[rnatag] = {}
 			for i in column_list:
 				fc[rnatag][i] = float(fields[i + 1])		# per user docs, GENE is column 0, first data column is col 1.
+
+
 			
 	genes_array = array( genes.keys() )
 	gene_idx = arange( len( genes ) )
@@ -638,10 +710,11 @@ elif sys.argv[1] in ['bf','analysis']:
 					bayes_factor.append( slope * fc[rnatag][rep] + intercept )
 				bf[rnatag].append(bayes_factor)
 
-		
+
 			
 	if TESTMODE == True:
 		fp.close()
+
 
 
 	num_obs = dict()
@@ -649,7 +722,7 @@ elif sys.argv[1] in ['bf','analysis']:
 		bf_mean = dict()  
 		bf_std = dict() 
 		bf_norm = dict()  # sgRNA number complement
-	elif RNALEVEL==True:
+	if RNALEVEL==True or MULTI_TARGET_FILTERING == True:
 		bf_mean_rna_rep = dict()
 		bf_std_rna_rep = dict() 
 		#bf_norm_rna_rep = dict()  
@@ -658,7 +731,7 @@ elif sys.argv[1] in ['bf','analysis']:
 	
 	for g in gene2rna:
 		num_obs[g] = len(  bf[  gene2rna[g][0] ]  )
-		if RNALEVEL==True:
+		if RNALEVEL==True or MULTI_TARGET_FILTERING == True:
 			for rnatag in gene2rna[g]:
 				bf_mean_rna_rep[rnatag] = dict()
 				bf_std_rna_rep[rnatag] = dict()
@@ -667,7 +740,7 @@ elif sys.argv[1] in ['bf','analysis']:
 					bf_mean_rna_rep[rnatag][column_list[rep]] = mean(t[rep])
 					bf_std_rna_rep[rnatag][column_list[rep]] = std(t[rep])
 
-		elif RNALEVEL==False:
+		if RNALEVEL==False:
 			sumofbf_list = list()
 			for i in range( num_obs[g] ):
 				sumofbf = 0.0
@@ -676,9 +749,94 @@ elif sys.argv[1] in ['bf','analysis']:
 				sumofbf_list.append(sumofbf)  # append each iter
 			bf_mean[g] = mean(sumofbf_list)
 			bf_std[g] = std(sumofbf_list)
-			if FLATSGRNA == True:
-				multiple_factor = NUM_DESIRE_SGRNA / float(len(gene2rna[g]))
-				bf_norm[g] = mean(sumofbf_list) * multiple_factor
+
+
+	#
+	# BUILD MULTIPLE REGRESSION MODEL FOR MULTI TARGETING GUIDE RNAs
+	#
+	if MULTI_TARGET_FILTERING == True:
+		count=0
+		trainset = dict()
+		bf_multi_corrected_gene = dict()
+		bf_multi_corrected_rna = dict()
+		for gene in gene2rna:
+			# multi_targeting_sgrnas_info[seqid] = (perfectmatch, mismatch_1bp, perfectmatch_gene, mismatch_1bp_gene)
+			multitarget = list()
+			onlytarget = list()
+			for seqid in gene2rna[gene]:
+				if seqid not in aligninfo.index:
+					continue
+				if seqid in multi_targeting_sgrnas_info:
+					multitarget.append(seqid)
+				else:
+					onlytarget.append(seqid)
+
+			if len(onlytarget) > 0: # comparsion between sgRNAs targeting one locus and multiple loci
+				if len(multitarget) > 0:
+					
+					bf_only = mean([sum(bf_mean_rna_rep[seqid].values()) for seqid in onlytarget])
+					for seqid in onlytarget:
+						trainset[seqid] = [1,0,0]
+		                
+					for seqid in multitarget:
+						if multi_targeting_sgrnas_info[seqid][2] > 1 or multi_targeting_sgrnas_info[seqid][3] > 0:  # train model using multi-targeting only targeting one protein coding gene
+							continue
+						
+						count+=1
+						increment = sum(bf_mean_rna_rep[seqid].values()) - bf_only
+
+						trainset[seqid] = [multi_targeting_sgrnas_info[seqid][0], multi_targeting_sgrnas_info[seqid][1], increment]
+		
+		if count < 10:
+			print("Not enough train set for calculating multi-targeting effect.\n")
+			print("It may cause due to unmatched gRNA names between the foldchange file and the align info file.\n")
+			print("Filtering is not finished\n")
+			MULTI_TARGET_FILTERING = False
+
+		else:
+
+			trainset = pd.DataFrame().from_dict(trainset).T
+			X = trainset[[0,1]]
+			y = trainset[2]
+
+			regressor = LinearRegression()  
+			regressor.fit(X, y)  
+			coeff_df = pd.DataFrame(regressor.coef_, X.columns, columns=['Coefficient'])  
+			for i in [0,1]:
+				if coeff_df['Coefficient'][i] < 0:
+					print ("Regression coefficient is below than zero. Substituted to zero\n")
+					coeff_df['Coefficient'][i] = 0.0
+			print "Multiple effects from perfect matched loci = %.3f and 1bp mis-matched loci = %.3f"%(coeff_df['Coefficient'][0],coeff_df['Coefficient'][1])
+			
+			if RNALEVEL==False:
+				for g in gene2rna:
+					penalty = 0.0
+					for seqid in gene2rna[gene]:
+						if seqid in multi_targeting_sgrnas_info:
+							penalty += float(multi_targeting_sgrnas_info[seqid][0] - 1) * coeff_df['Coefficient'][0] + float(multi_targeting_sgrnas_info[seqid][1]) * coeff_df['Coefficient'][1]
+					bf_multi_corrected_gene[g] = bf_mean[g] - penalty
+			else:
+				for g in gene2rna:
+					for seqid in gene2rna[g]:
+						if seqid in multi_targeting_sgrnas_info:
+							penalty = float(multi_targeting_sgrnas_info[seqid][0] - 1) * coeff_df['Coefficient'][0] + float(multi_targeting_sgrnas_info[seqid][1]) * coeff_df['Coefficient'][1]
+						else:
+							penalty = 0.0
+						bf_multi_corrected_rna[seqid] = sum(bf_mean_rna_rep[seqid].values()) - penalty
+
+
+	#
+	#  NORMALIZE sgRNA COUNT
+	#
+	if RNALEVEL == False and FLATSGRNA == True:
+		if MULTI_TARGET_FILTERING == True:
+			targetbf = bf_multi_corrected_gene
+		else:
+			targetbf = bf_mean
+			
+		for g in gene2rna:
+			multiple_factor = NUM_DESIRE_SGRNA / float(len(gene2rna[g]))
+			bf_norm[g] = targetbf[g] * multiple_factor
 
 
 	'''			
@@ -799,21 +957,36 @@ elif sys.argv[1] in ['bf','analysis']:
 	if RNALEVEL == True:
 		fout.write('RNA\tGENE')
 		for i in range(len(column_list)):
-			fout.write('\t{0:s}\t{1:s}'.format(column_labels[i], column_labels[i]+"_STD"))
+			fout.write('\t{0:s}'.format(column_labels[i]))
+			if TRAINMETHOD == 0:
+				fout.write('\t{0:s}'.format(column_labels[i]+"_STD"))
 		fout.write('\tBF')
 		if TRAINMETHOD == 0:	
 			fout.write('\tNumObs')
 		fout.write('\n')
 		
 		for rnatag in sorted( bf.keys() ):
-		
-			fout.write('{0:s}\t'.format(rnatag)) # RNA tag
+			# RNA tag
+			fout.write('{0:s}\t'.format(rnatag)) 
+			# Gene
 			gene = rna2gene[rnatag]
 			fout.write('{0:s}\t'.format( gene) )
-			for rep in column_list:
-				fout.write('{0:4.3f}\t{1:4.3f}\t'.format(bf_mean_rna_rep[rnatag][rep],bf_std_rna_rep[rnatag][rep]))
 
-			fout.write('{0:4.3f}\t{1:d}\n'.format( float(sum(bf_mean_rna_rep[rnatag].values())), num_obs[gene] ))
+			# BF of replicates
+			for rep in column_list:
+				fout.write('{0:4.3f}\t'.format(bf_mean_rna_rep[rnatag][rep]))
+				if TRAINMETHOD == 0:
+					fout.write('{0:4.3f}\t'.format(bf_std_rna_rep[rnatag][rep]))
+			# Sum BF of replicates
+			if MULTI_TARGET_FILTERING == True:
+				fout.write('{0:4.3f}'.format( float(bf_multi_corrected_rna[rnatag]) ))
+			else:
+				fout.write('{0:4.3f}'.format( float(sum(bf_mean_rna_rep[rnatag].values())) ))
+			
+			# Num obs
+			if TRAINMETHOD == 0:
+				fout.write('\t{0:d}'.format( num_obs[gene] ))
+			fout.write('\n')
 	else:
 		fout.write('GENE')
 		if NETWORKBOOST == True:
@@ -828,6 +1001,7 @@ elif sys.argv[1] in ['bf','analysis']:
 		fout.write('\n')
 
 		for g in sorted( genes.keys() ):
+			# Gene
 			fout.write('{0:s}'.format( g ))
 			if NETWORKBOOST == True:
 				boostedbf_mean = mean( boostedbf[g] )
@@ -835,9 +1009,16 @@ elif sys.argv[1] in ['bf','analysis']:
 				fout.write('\t{0:4.3f}'.format( float(boostedbf_mean) ))
 				if TRAINMETHOD == 0:
 					fout.write('\t{0:4.3f}'.format( float(boostedbf_std) ))
-			fout.write('\t{0:4.3f}'.format( float(bf_mean[g]) ))
+
+			# BF
+			if MULTI_TARGET_FILTERING == True:
+				fout.write('\t{0:4.3f}'.format( float(bf_multi_corrected_gene[g]) ))
+			else:
+				fout.write('\t{0:4.3f}'.format( float(bf_mean[g]) ))
+			# STD, Count
 			if TRAINMETHOD == 0:
 				fout.write('\t{0:4.3f}\t{1:d}'.format( float(bf_std[g]), num_obs[g] ) )
+			# Normalized BF
 			if FLATSGRNA == True:
 				fout.write('\t{0:4.3f}'.format( float(bf_norm[g]) ) )
 			
