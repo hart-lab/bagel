@@ -22,7 +22,7 @@ Build 110
 #---------------------------------
 # BAGEL:  Bayesian Analysis of Gene EssentaLity
 # (c) Traver Hart <traver@hart-lab.org>, Eiru Kim <rooeikim@gmail.com> 2017.
-# modified 10/2017
+# modified 08/2019
 # Free to modify and redistribute with attribtuion
 #---------------------------------
 
@@ -131,15 +131,10 @@ def helptext(arg):
 
 
 if len(sys.argv) < 2:
-	print helptext('main')
+	print(helptext('main'))
 	sys.exit(2)
 
 # ------------------------------------
-
-import numpy as np
-import pandas as pd
-import scipy.stats as stats
-from matplotlib.mlab import find
 
 
 #-------------------------------------------#
@@ -177,14 +172,14 @@ if sys.argv[1] == 'fc':
 	try:
 		opts, args = getopt.getopt(sys.argv[2:], "hi:o:c:", ["minreads=","pseudo=","help"])
 	except getopt.GetoptError:
-		print helptext('fc')
+		print(helptext('fc'))
 		sys.exit(2)
 	if len(opts) == 0:
-		print helptext('fc')
+		print(helptext('fc'))
 		sys.exit(2)
 	for opt, arg in opts:
 		if opt in ( '-h', '--help'):
-			print helptext('fc')
+			print(helptext('fc'))
 			sys.exit()
 		elif opt == '-i':
 			readcountfile = arg
@@ -197,8 +192,8 @@ if sys.argv[1] == 'fc':
 		elif opt == '--pseudo':
 			pseudo = float(arg)
 		else:
-			print helptext('fc')
-			print "Error! Unknown arguments"
+			print(helptext('fc'))
+			print("Error! Unknown arguments")
 			sys.exit(2)
 
 	#----------------------------------------------------------------#
@@ -210,7 +205,7 @@ if sys.argv[1] == 'fc':
 	import scipy.stats as stats
 	import pandas as pd
 	
-	reads = pd.read_table(readcountfile, sep='\t', index_col=0)
+	reads = pd.read_csv(readcountfile, sep='\t', index_col=0)
 	
 
 	#
@@ -226,7 +221,7 @@ if sys.argv[1] == 'fc':
 
 	try:
 		try:
-			ctrl_columns = map(int,ctrl_columns)
+			ctrl_columns = list(map(int,ctrl_columns))
 			ctrl_labels = reads.columns.values[ctrl_columns]
 		except ValueError:
 			ctrl_labels = ctrl_columns
@@ -236,25 +231,25 @@ if sys.argv[1] == 'fc':
 		ctrl_label_new = ';'.join(ctrl_labels)
 		reads[ctrl_label_new] = ctrl_sum
 	except:
-		print "Invalid controls"
+		print("Invalid controls")
 		sys.exit(2)
 	
 	numClones, numColumns = reads.shape
-	print "Controls: " + ", ".join(ctrl_labels)
+	print("Controls: " + ", ".join(ctrl_labels))
 
 	#
 	# Add pseudo count
 	#
 	
-	reads.ix[:,range(1,numColumns)] += pseudo
+	reads.ix[:,list(range(1,numColumns))] += pseudo
 	
 	#
 	# normalize each sample to a fixed total readcount
 	#
-	sumReads = reads.ix[:,range(1,numColumns)].sum(0)
+	sumReads = reads.ix[:,list(range(1,numColumns))].sum(0)
 	normed   = pd.DataFrame( index=reads.index.values )
 	normed['GENE'] = reads.ix[:,0]				# first column is gene name
-	normed = reads.ix[:,range(1,numColumns)] / tile( sumReads, [numClones,1]) * 10000000	# normalize to 10M reads
+	normed = reads.ix[:,list(range(1,numColumns))] / tile( sumReads, [numClones,1]) * 10000000	# normalize to 10M reads
 	
 	#
 	# filter for minimum readcount
@@ -311,14 +306,14 @@ elif sys.argv[1] in ['bf','analysis']:
 	try:
 		opts, args = getopt.getopt(sys.argv[2:], "hti:o:c:e:n:w:f:mbsr", ["numcv=","numiter=","help","bootstrapping","small-sample","seed=","align-info=","m0=","m1="])
 	except getopt.GetoptError:
-		print helptext('bf')
+		print(helptext('bf'))
 		sys.exit(2)
 	if len(opts) == 0:
-		print  helptext('bf')
+		print(helptext('bf'))
 		sys.exit(2)
 	for opt, arg in opts:
 		if opt in ( '-h', '--help'):
-			print helptext('bf')
+			print(helptext('bf'))
 			sys.exit()
 		elif opt == '-i':
 			foldchangefile = arg
@@ -342,7 +337,7 @@ elif sys.argv[1] in ['bf','analysis']:
 			random.seed(seed)
 		elif opt == '-w':
 			NETWORKBOOST = True
-			print "Network boosting enabled"
+			print("Network boosting enabled")
 			networkfile = arg
 		elif opt in ('-b','--bootstrapping'):
 			TRAINMETHOD = 0
@@ -359,7 +354,7 @@ elif sys.argv[1] in ['bf','analysis']:
 			NUM_DESIRE_SGRNA = int(arg)
 		elif opt == '-m':
 			MULTI_TARGET_FILTERING = True
-			print "Multi-target filtering enabled"
+			print("Multi-target filtering enabled")
 		elif opt in ["--m0"]:
 			MULTI_TARGET_FILTERING_on = int(arg)
 		elif opt in ["--m1"]:
@@ -370,8 +365,8 @@ elif sys.argv[1] in ['bf','analysis']:
 
 
 		else:
-			print helptext('bf')
-			print "Error! Unknown arguments"
+			print(helptext('bf'))
+			print("Error! Unknown arguments")
 			sys.exit(2)
 	try:
 		outfilename
@@ -381,20 +376,20 @@ elif sys.argv[1] in ['bf','analysis']:
 	### Check arguments
 
 	if check!=3:
-		print helptext('bf')
-		print "Error! Missing arguments"
+		print(helptext('bf'))
+		print("Error! Missing arguments")
 		sys.exit(2)
 	
 	if MULTI_TARGET_FILTERING==True and aligninfofile == "":
-		print helptext('bf')
-		print "Error! Please indicate align-info file"
+		print(helptext('bf'))
+		print("Error! Please indicate align-info file")
 		sys.exit(2)
 
 	if NETWORKBOOST == True and RNALEVEL==True:
 		NETWORKBOOST = False
-		print "# Network boosting is disabled in RNA-wise output"
+		print("# Network boosting is disabled in RNA-wise output")
 	
-	print 'Random seed = %d'%seed
+	print('Random seed = %d'%seed)
 
 	genes={}
 	fc = {}
@@ -402,7 +397,7 @@ elif sys.argv[1] in ['bf','analysis']:
 	rna2gene = {}
 	
 	def round_to_hundredth(x):
-		return round( x*100) / 100.0
+		return around( x*100) / 100.0
 		
 	def func_linear(x, a, b):
 		return (a * x) + b
@@ -418,7 +413,7 @@ elif sys.argv[1] in ['bf','analysis']:
 			self._step = 0
 		def cross_validation(self):
 			if self._bid < 1: #bid check
-				print "The number of genes is too small! n<" + str(self._cvnum)
+				print("The number of genes is too small! n<" + str(self._cvnum))
 				sys.exit(2)
 			drawing = list()
 			mask = array([True]*self._n)
@@ -473,7 +468,7 @@ elif sys.argv[1] in ['bf','analysis']:
 	if MULTI_TARGET_FILTERING == True:
 		from sklearn.linear_model import LinearRegression 
 		try:
-			aligninfo = pd.read_table(aligninfofile,header=None,index_col=0).fillna("")
+			aligninfo = pd.read_csv(aligninfofile,header=None,index_col=0,sep="\t").fillna("")
 			for seqid in aligninfo.index:
 				perfectmatch = 0
 				mismatch_1bp = 0
@@ -493,10 +488,10 @@ elif sys.argv[1] in ['bf','analysis']:
 					multi_targeting_sgrnas_info[seqid] = (perfectmatch, mismatch_1bp, perfectmatch_gene, mismatch_1bp_gene)
 
 		except:
-			print "Please check align-info file"
+			print("Please check align-info file")
 			sys.exit(2)
 
-		print "Total %d multi-targeting gRNAs are discarded"%len(multi_targeting_sgrnas)		
+		print("Total %d multi-targeting gRNAs are discarded"%len(multi_targeting_sgrnas))		
 
 	#
 	# LOAD FOLDCHANGES
@@ -509,16 +504,16 @@ elif sys.argv[1] in ['bf','analysis']:
 		#
 		try:
 			try:
-				column_list = map(int,columns)
+				column_list = list(map(int,columns))
 				column_labels = [ fieldname[x+1] for x in column_list ]
 			except ValueError:
 				column_labels = columns
 				column_list = [ x for x in range(len(fieldname) - 1) if fieldname[ x + 1] in column_labels]   # +1 because of First column start 2
-			print "Using column:  " + ", ".join(column_labels)
+			print("Using column:  " + ", ".join(column_labels))
 			#print "Using column:  " + ", ".join(map(str,column_list))
 			
 		except:
-			print "Invalid columns"
+			print("Invalid columns")
 			sys.exit(2)
 
 		for line in fin:
@@ -540,9 +535,9 @@ elif sys.argv[1] in ['bf','analysis']:
 
 
 			
-	genes_array = array( genes.keys() )
+	genes_array = array( list(genes.keys()) )
 	gene_idx = arange( len( genes ) )
-	print "Number of unique genes:  " + str( len(genes) )
+	print("Number of unique genes:  " + str( len(genes) ))
 
 	#
 	# DEFINE REFERENCE SETS
@@ -554,7 +549,7 @@ elif sys.argv[1] in ['bf','analysis']:
 		for line in fin:
 			coreEss.append( line.rstrip().split('\t')[0] )
 	coreEss=array(coreEss)
-	print "Number of reference essentials: " + str(len(coreEss))
+	print("Number of reference essentials: " + str(len(coreEss)))
 	
 	nonEss = []
 	with open(non_ref) as fin:
@@ -563,7 +558,7 @@ elif sys.argv[1] in ['bf','analysis']:
 			nonEss.append( line.rstrip().split('\t')[0] )
 	
 	nonEss = array(nonEss)
-	print "Number of reference nonessentials: " + str(len(nonEss))
+	print("Number of reference nonessentials: " + str(len(nonEss)))
 	
 	#
 	# LOAD NETWORK 
@@ -574,15 +569,15 @@ elif sys.argv[1] in ['bf','analysis']:
 		edgecount = 0
 		with open(networkfile) as fin:
 			for line in fin:
-				 linearray = line.rstrip().split('\t') # GeneA \t GeneB format
-				 if linearray[0] in genes_array and linearray[1] in genes_array:
-					 for i in [0,1]:
-						 if linearray[i] not in network:
+				linearray = line.rstrip().split('\t') # GeneA \t GeneB format
+				if linearray[0] in genes_array and linearray[1] in genes_array:
+					for i in [0,1]:
+						if linearray[i] not in network:
 							network[linearray[i]] = {}
-						 network[linearray[i]][linearray[-1 * (i-1)]] = 1  # save edge information
-					 edgecount += 1
+						network[linearray[i]][linearray[-1 * (i-1)]] = 1  # save edge information
+					edgecount += 1
 				 
-		print "Number of network edges: " + str(edgecount)
+		print("Number of network edges: " + str(edgecount))
 		
 	
 	#
@@ -616,14 +611,12 @@ elif sys.argv[1] in ['bf','analysis']:
 		fp = open(outfilename+".traininfo","w")
 		fp.write("#1: Loopcount\n#2: Training set\n#3: Testset\n")
 		
-	print "Iter",
-	print "TrainEss",
-	print "TrainNon",
-	print "TestSet"
+	print("Iter TrainEss TrainNon TestSet")
 	sys.stdout.flush()
 	for loop in range(LOOPCOUNT):
 		currentbf = {}
-		print str(loop),
+		printstr = ""
+		printstr += str(loop)
 		
 		#
 		# bootstrap resample (10-folds cross-validation) from gene list to get the training set
@@ -641,20 +634,21 @@ elif sys.argv[1] in ['bf','analysis']:
 		
 		train_ess = where( in1d( genes_array[gene_train_idx], coreEss))[0]
 		train_non = where( in1d( genes_array[gene_train_idx], nonEss))[0]
-		print len(train_ess),
-		print len(train_non),
-		print len(gene_test_idx)
+		printstr += " " + str(len(train_ess))
+		printstr += " " + str(len(train_non))
+		printstr += " " + str(len(gene_test_idx))
+		print(printstr)
 		sys.stdout.flush()
 		#
 		# define ess_train: vector of observed fold changes of essential genes in training set
 		#
 		ess_train_fc_list_of_lists = [ fc[rnatag] for g in genes_array[gene_train_idx[train_ess]] for rnatag in gene2rna[g] ]
-		ess_train_fc_flat_list = [obs for sublist in ess_train_fc_list_of_lists for obs in sublist.values()]
+		ess_train_fc_flat_list = [obs for sublist in ess_train_fc_list_of_lists for obs in list(sublist.values())]
 		#
 		# define non_train vector of observed fold changes of nonessential genes in training set
 		#
 		non_train_fc_list_of_lists = [ fc[rnatag] for g in genes_array[gene_train_idx[train_non]] for rnatag in gene2rna[g] ]
-		non_train_fc_flat_list = [obs for sublist in non_train_fc_list_of_lists for obs in sublist.values()]
+		non_train_fc_flat_list = [obs for sublist in non_train_fc_list_of_lists for obs in list(sublist.values())]
 		#
 		# calculate empirical fold change distributions for both
 		#
@@ -679,7 +673,7 @@ elif sys.argv[1] in ['bf','analysis']:
 		#
 		logratio_lookup = {}
 		for i in arange(xmin, xmax+0.01, 0.01):
-			logratio_lookup[round(i*100)] = log2( kess.evaluate(i) / knon.evaluate(i) )
+			logratio_lookup[around(i*100)] = log2( kess.evaluate(i) / knon.evaluate(i) )
 		#
 		# calculate BFs from lookup table for withheld test set
 		#
@@ -690,14 +684,14 @@ elif sys.argv[1] in ['bf','analysis']:
 
 		for g in genes_array[gene_train_idx]:
 			for rnatag in gene2rna[g]:
-				for foldchange in fc[rnatag].values():
+				for foldchange in list(fc[rnatag].values()):
 					if foldchange >= xmin and foldchange <= xmax:
-						testx.append(round(foldchange*100)/100)  
-						testy.append(logratio_lookup[round(foldchange*100)][0])
+						testx.append(around(foldchange*100)/100)  
+						testy.append(logratio_lookup[around(foldchange*100)][0])
 		try:
 			slope, intercept, r_value, p_value, std_err = stats.linregress(array(testx),array(testy))
 		except:
-			print "Regression failed. Check quality of the screen"
+			print("Regression failed. Check quality of the screen")
 			sys.exit(2)
 		#
 		# BF calculation
@@ -735,7 +729,7 @@ elif sys.argv[1] in ['bf','analysis']:
 			for rnatag in gene2rna[g]:
 				bf_mean_rna_rep[rnatag] = dict()
 				bf_std_rna_rep[rnatag] = dict()
-				t = zip(*bf[rnatag])
+				t = list(zip(*bf[rnatag]))
 				for rep in range(len(column_list)):
 					bf_mean_rna_rep[rnatag][column_list[rep]] = mean(t[rep])
 					bf_std_rna_rep[rnatag][column_list[rep]] = std(t[rep])
@@ -806,7 +800,7 @@ elif sys.argv[1] in ['bf','analysis']:
 				if coeff_df['Coefficient'][i] < 0:
 					print ("Regression coefficient is below than zero. Substituted to zero\n")
 					coeff_df['Coefficient'][i] = 0.0
-			print "Multiple effects from perfect matched loci = %.3f and 1bp mis-matched loci = %.3f"%(coeff_df['Coefficient'][0],coeff_df['Coefficient'][1])
+			print("Multiple effects from perfect matched loci = %.3f and 1bp mis-matched loci = %.3f"%(coeff_df['Coefficient'][0],coeff_df['Coefficient'][1]))
 			
 			if RNALEVEL==False:
 				for g in gene2rna:
@@ -855,7 +849,7 @@ elif sys.argv[1] in ['bf','analysis']:
 	if NETWORKBOOST == True and RNALEVEL==False:  # Network boost is only working for gene level	
 		if TESTMODE == True: # TEST MODE
 			fp = open(outfilename+".netscore","w")
-		print "\nNetwork score calculation start\n"
+		print("\nNetwork score calculation start\n")
 
 		networkscores = {}
 		for g in genes_array[gene_idx]:
@@ -874,7 +868,9 @@ elif sys.argv[1] in ['bf','analysis']:
 
 		for loop in range(LOOPCOUNT):	
 			currentnbf = {}
-			print str(loop),
+			printstr=""
+			printstr+=str(loop)
+			
 			#
 			# draw train, test sets
 			#
@@ -884,9 +880,10 @@ elif sys.argv[1] in ['bf','analysis']:
 			#
 			train_ess = where( in1d( genes_array[gene_train_idx], coreEss))[0]
 			train_non = where( in1d( genes_array[gene_train_idx], nonEss))[0]
-			print len(train_ess),
-			print len(train_non),
-			print len(gene_test_idx)
+			printstr+= " " + str(len(train_ess))
+			printstr+= " " + str(len(train_non))
+			printstr+= " " + str(len(gene_test_idx))
+
 			sys.stdout.flush()
 			#
 			# calculate Network BF for test set
@@ -928,7 +925,7 @@ elif sys.argv[1] in ['bf','analysis']:
 			for g in genes_array[gene_train_idx]:
 				if g in networkscores:
 					if networkscores[g] >= xmin and networkscores[g] <= xmax:
-						testx.append(round(networkscores[g]*100)/100)  
+						testx.append(around(networkscores[g]*100)/100)  
 						testy.append(log2(kess.evaluate(networkscores[g])[0] / knon.evaluate(networkscores[g])[0]))
 						
 			slope, intercept, r_value, p_value, std_err = stats.linregress(array(testx),array(testy))
@@ -1034,18 +1031,19 @@ elif sys.argv[1] in ['bf','analysis']:
 #-------------------------------------------#
 
 elif sys.argv[1] == 'pr':
+
 	BFCOL = 'BF'
 	try:
 		opts, args = getopt.getopt(sys.argv[2:], "htk:i:o:c:e:n:w:b", ["numiter=","help","bootstrapping"])
 	except getopt.GetoptError:
-		print helptext('pr')
+		print(helptext('pr'))
 		sys.exit(2)
 	if len(opts) == 0:
-		print  helptext('pr')
+		print(helptext('pr'))
 		sys.exit(2)
 	for opt, arg in opts:
 		if opt in ( '-h', '--help'):
-			print helptext('pr')
+			print(helptext('pr'))
 			sys.exit()
 		elif opt == '-i':
 			bf_file = arg
@@ -1061,26 +1059,32 @@ elif sys.argv[1] == 'pr':
 			check+=1
 			non_ref = arg
 		else:
-			print helptext('pr')
-			print "Error! Unknown arguments"
+			print(helptext('pr'))
+			print("Error! Unknown arguments")
 			sys.exit(2)
 	try:
 		outfilename
 	except:
 		outfilename = foldchangefile.replace(" ","_") + ".pr"
 	if check!=3:
-		print helptext('pr')
-		print "Error! Missing arguments"
+		print(helptext('pr'))
+		print("Error! Missing arguments")
 		sys.exit(2)
+	
+
+	from numpy import *
+	import scipy.stats as stats
+	import pandas as pd
+
 	#
 	# test for availability of all files
 	#
-	essentials = pd.read_table(ess_ref, index_col=0)
-	nonessentials = pd.read_table(non_ref, index_col=0)
-	bf = pd.read_table(bf_file, index_col=0)
+	essentials = pd.read_csv(ess_ref, index_col=0,sep="\t")
+	nonessentials = pd.read_csv(non_ref, index_col=0,sep="\t")
+	bf = pd.read_csv(bf_file, index_col=0,sep="\t")
 
 	if BFCOL not in bf.dtypes.index:
-		print "Error! the column name is not in the file"
+		print("Error! the column name is not in the file")
 		sys.exit(2)
 		
 	fout = open(outfilename, 'w')
@@ -1115,6 +1119,6 @@ elif sys.argv[1] == 'pr':
 	fout.close()
 
 else:
-	print helptext('main')
+	print(helptext('main'))
 	sys.exit(2)
 
