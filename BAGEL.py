@@ -241,30 +241,30 @@ if sys.argv[1] == 'fc':
 	# Add pseudo count
 	#
 	
-	reads.ix[:,list(range(1,numColumns))] += pseudo
+	reads.iloc[:,list(range(1,numColumns))] += pseudo
 	
 	#
 	# normalize each sample to a fixed total readcount
 	#
-	sumReads = reads.ix[:,list(range(1,numColumns))].sum(0)
+	sumReads = reads.iloc[:,list(range(1,numColumns))].sum(0)
 	normed   = pd.DataFrame( index=reads.index.values )
-	normed['GENE'] = reads.ix[:,0]				# first column is gene name
-	normed = reads.ix[:,list(range(1,numColumns))] / tile( sumReads, [numClones,1]) * 10000000	# normalize to 10M reads
+	normed['GENE'] = reads.iloc[:,0]				# first column is gene name
+	normed = reads.iloc[:,list(range(1,numColumns))] / tile( sumReads, [numClones,1]) * 10000000	# normalize to 10M reads
 	
 	#
 	# filter for minimum readcount
 	#
 	f = where( reads[ ctrl_label_new ] >= MIN_READS )[0]
-	normed = normed.ix[f,:]
+	normed = normed.iloc[f,:]
 	
 	#
 	# calculate fold change
 	#
 	foldchange = pd.DataFrame( index=normed.index.values )
 	foldchange.index.name = 'REAGENT_ID'
-	foldchange['GENE'] = reads.ix[f,0]				# dataframe 'normed' has no GENE column
+	foldchange['GENE'] = reads.iloc[f,0]				# dataframe 'normed' has no GENE column
 	for i in range( numColumns -1 ):			
-		foldchange[ normed.columns.values[i] ] = log2( (normed.ix[:,normed.columns.values[i] ])   / normed[ctrl_label_new])
+		foldchange[ normed.columns.values[i] ] = log2( (normed.iloc[:,normed.columns.values[i] ])   / normed[ctrl_label_new])
 	#
 	# we have calculated a foldchange for the control column.  Drop it.
 	#
@@ -768,7 +768,7 @@ elif sys.argv[1] in ['bf','analysis']:
 			if len(onlytarget) > 0: # comparsion between sgRNAs targeting one locus and multiple loci
 				if len(multitarget) > 0:
 					
-					bf_only = mean([sum(bf_mean_rna_rep[seqid].values()) for seqid in onlytarget])
+					bf_only = mean([sum(list(bf_mean_rna_rep[seqid].values())) for seqid in onlytarget])
 					for seqid in onlytarget:
 						trainset[seqid] = [1,0,0]
 		                
@@ -777,7 +777,7 @@ elif sys.argv[1] in ['bf','analysis']:
 							continue
 						
 						count+=1
-						increment = sum(bf_mean_rna_rep[seqid].values()) - bf_only
+						increment = sum(list(bf_mean_rna_rep[seqid].values())) - bf_only
 
 						trainset[seqid] = [multi_targeting_sgrnas_info[seqid][0], multi_targeting_sgrnas_info[seqid][1], increment]
 		
@@ -816,7 +816,7 @@ elif sys.argv[1] in ['bf','analysis']:
 							penalty = float(multi_targeting_sgrnas_info[seqid][0] - 1) * coeff_df['Coefficient'][0] + float(multi_targeting_sgrnas_info[seqid][1]) * coeff_df['Coefficient'][1]
 						else:
 							penalty = 0.0
-						bf_multi_corrected_rna[seqid] = sum(bf_mean_rna_rep[seqid].values()) - penalty
+						bf_multi_corrected_rna[seqid] = sum(list(bf_mean_rna_rep[seqid].values())) - penalty
 
 
 	#
@@ -978,7 +978,7 @@ elif sys.argv[1] in ['bf','analysis']:
 			if MULTI_TARGET_FILTERING == True:
 				fout.write('{0:4.3f}'.format( float(bf_multi_corrected_rna[rnatag]) ))
 			else:
-				fout.write('{0:4.3f}'.format( float(sum(bf_mean_rna_rep[rnatag].values())) ))
+				fout.write('{0:4.3f}'.format( float(sum(list(bf_mean_rna_rep[rnatag].values()))) ))
 			
 			# Num obs
 			if TRAINMETHOD == 0:
@@ -1114,7 +1114,7 @@ elif sys.argv[1] == 'pr':
 	    recall = cumulative_tp / totNumEssentials
 	    if ( (cumulative_tp>0) | ( cumulative_fp > 0) ):
 	        precision = cumulative_tp / (cumulative_tp + cumulative_fp)
-	    fout.write('{0:s}\t{1:4.3f}\t{2:4.3f}\t{3:4.3f}\n'.format( g, bf.ix[g,BFCOL], recall, precision) )
+	    fout.write('{0:s}\t{1:4.3f}\t{2:4.3f}\t{3:4.3f}\n'.format( g, bf.iloc[g,BFCOL], recall, precision) )
 		
 	fout.close()
 
