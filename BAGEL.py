@@ -44,7 +44,7 @@ class OptionRequiredIf(click.Option):
 # BAGEL:  Bayesian Analysis of Gene EssentaLity
 # (c) Traver Hart <traver@hart-lab.org>, Eiru Kim <rooeikim@gmail.com> 2017.
 # Acknowledgements: John McGonigle <j.e.mcgonigle@gmail.com>
-# modified 09/2019
+# modified 10/2019
 # Free to modify and redistribute with attribution
 # ---------------------------------
 
@@ -132,29 +132,33 @@ def fibo_weighted_sum(listofscore):
 @click.group(context_settings=CONTEXT_SETTINGS)
 def bagel():
     """
+    --------------------------------------------------------------------
     BAGEL.py
+    --------------------------------------------------------------------
     A tool from the Bayesian Analysis of Gene EssentiaLity (BAGEL) suite.
 
+    \b
     Calculate fold changes from read count data:
 
         \b
-        BAGEL.py fc [read count file] [output label] -c [control column]
+        BAGEL.py fc -i [read count file] -o [output label] -c [control column]
 
     Calculate Bayes Factors from foldchange data:
 
         \b
-        BAGEL.py bf [fold change] [output file] [essentials genes] [nonessentials genes] -c [columns]
+        BAGEL.py bf -i [fold change] -o [output file] -e [essentials genes] -n [nonessentials genes] -c [columns]
 
 
     Calculate precision-recall from Bayes Factors:
 
         \b
-        BAGEL.py pr [Bayes Factor file] [output file] [essentials genes] [nonessentials genes]
+        BAGEL.py pr -i [Bayes Factor file] -o [output file] -e [essentials genes] -n [nonessentials genes]
 
 
 
     To print the current build and version use:
 
+        \b
         BAGEL.py version
     """
 
@@ -172,33 +176,34 @@ def report_bagel_version():
 
 
 @click.command(name='fc')
-@click.argument('read-count-file', metavar='<read-count-file>', type=click.Path(exists=True))
-@click.argument('output-file', metavar='<output-file>')
+@click.option('-i', '--read-count-file', required=True, type=click.Path(exists=True))
+@click.option('-o', '--output-file', required=True)
 @click.option('-c', '--control-columns', required=True)
 @click.option('-m', '--min-reads', type=int, default=0)
 @click.option('-Np', '--pseudo-count', type=int, default=5)
 def calculate_fold_change(read_count_file, output_label, control_columns, min_reads, pseudo_count):
     """
+    \b
     Calculate fold changes from read count data outputting a fold change column:
 
-    \b
-    BAGEL.py fc [read count file] [output label] -c [control column]
+        \b
+        BAGEL.py fc -i [read count file] -o [output label] -c [control column]
 
     \b
     Required options:
-        [read count file]       Tab-delimited file of reagents and fold changes.  See documentation for format.
-        [output label]          Label for all output files
-        -c [control column]     A comma-delimited list of columns of control (T0 or plasmid) columns.
-                                Input can be either number or name.
+        -i --read-count-file       Tab-delimited file of reagents and fold changes.  See documentation for format.
+        -i --output-label          Label for all output files
+        -c --control-column         A comma-delimited list of columns of control (T0 or plasmid) columns.
+                                    Input can be either number or name.
     \b
     Other options:
         --minreads=N                   Discard gRNA with T0 counts < N (default 0)
-        --pseudo=N	                    Add a pseudocount of N to every readcount (default 5)
+        --pseudo=N	                   Add a pseudocount of N to every readcount (default 5)
         -h, --help                     Show this help text
 
     \b
     Example:
-        BAGEL.py fc readcount_file.txt -o experiment_name -c 1
+        BAGEL.py fc -i readcount_file.txt -o experiment_name -c 1
 
     This command calculates fold change, and writes [output label].foldchange and [output label].normalized_reads
 
@@ -284,10 +289,10 @@ def calculate_fold_change(read_count_file, output_label, control_columns, min_re
 
 
 @click.command(name='bf')
-@click.argument('fold_change', metavar='<fold-change-file>', type=click.Path(exists=True))
-@click.argument('output_file', metavar='output-file>')
-@click.argument('essential_genes', metavar='<essential-genes-file>', type=click.Path(exists=True))
-@click.argument('non_essential_genes', metavar='<non-essential-genes-file>', type=click.Path(exists=True))
+@click.option('-i', '--fold_change', required=True, type=click.Path(exists=True))
+@click.option('-o', '--output_file', required=True)
+@click.option('-e', '--essential_genes', required=True, type=click.Path(exists=True))
+@click.option('-n', '--non_essential_genes', required=True, type=click.Path(exists=True))
 @click.option('-c', '--columns-to-test', required=True)
 @click.option('-w', '--network-file', metavar='[network File]', default=None, type=click.Path(exists=True))
 @click.option('-m', '--filter-multi-target', is_flag=True)
@@ -309,34 +314,35 @@ def calculate_bayes_factors(
         bootstrap_iterations, no_of_cross_validations, sgrna_bayes_factors, equalise_sgrna_no, seed, run_test_mode
 ):
     """
+    \b
     Calculate Bayes Factors from an input fold change file:
 
         \b
-        BAGEL.py bf [fold change] [output file] [essentials genes] [nonessentials genes] -c [columns]
+        BAGEL.py bf -i [fold change] -o [output file] -e [essentials genes] -n [nonessentials genes] -c [columns]
+
 
     \b
     Calculates a log2 Bayes Factor for each gene. Positive BFs indicate confidence that the gene is essential.
-
-    \b
-    Output written to the [output file] contains: gene name, mean Bayes Factor across all iterations,
-    std deviation of BFs, and number of iterationsin which the gene was part of the test set
-    (and a BF was calculated[output file].
+    Output written to the [output file] contains: gene name, mean Bayes Factor across all iterations, std deviation of
+    BFs, and number of iterations in which the gene was part of the test set (and a BF was calculated[output file].
 
 
     \b
     Required options:
-        [fold change file]         Tab-delmited file of reagents and fold changes (see documentation for format).
-        [output file]              Output filename\n'
-        [reference essentials]     Training set of essential genes (text file)
-        [reference nonessentials]  Training set of nonessential genes (text file)
-        -c [columns to test]          comma-delimited list of columns in input file to include in analyisis
+        -i --fold-change [fold change file]                     Tab-delimited file of reagents and fold changes
+                                                                (see documentation for format).
+        -o, --output-file [output file]                         Output filename
+        -e, --essential-genes [reference essentials]            File with list of training set of essential genes
+        -n, --non-essential-genes [reference nonessentials]     File with list of training set of nonessential genes
+        -c [columns to test]                                    comma-delimited list of columns in input file to
+                                                                include in analyisis
 
     \b
     Network options:
         -w  [network file]    Enable Network boosting. Tab-delmited file of edges. [GeneA (\\t) GeneB]\n'
 
     \b
-    Multi-target guides filtering options:
+        Multi-target guides filtering options:
         -m, --filter-multi-target     Enable filtering multi-targeting guide RNAs
         --align-info  [file]          Input precalculated align-info file
         -m0, --loci-without-mismatch  Filtering guide RNAs without mismatch targeting over than [N] loci, default = 10
@@ -353,10 +359,11 @@ def calculate_bayes_factors(
         -s, --seed=N                   Define random seed
         -h, --help                     Show this help text
 
+    \b
     Example:
 
         \b
-        BAGEL.py bf fold_change_file.txt results.bf essentials_training_set.txt nonessentials_training_set.txt -c 1,2,3
+        BAGEL.py bf -i fc_file.txt -o results.bf -e ess_training_set.txt -n noness_training_set.txt -c 1,2,3
 
     """
     np.random.seed(seed)  # set random seed
@@ -963,24 +970,26 @@ def calculate_bayes_factors(
 
 
 @click.command(name='pr')
-@click.argument('bayes-factors', metavar='<bayes_factors_file>', type=click.Path(exists=True))
-@click.argument('output-file', metavar='output-file>')
-@click.argument('essential-genes', metavar='<essential-genes-file>', type=click.Path(exists=True))
-@click.argument('non-essential-genes', metavar='<non-essential-genes-file>', type=click.Path(exists=True))
+@click.option('-i', '--bayes-factors', required=True,
+              type=click.Path(exists=True))
+@click.option('-o', '--output-file', required=True)
+@click.option('-e', '--essential-genes', required=True,
+              type=click.Path(exists=True))
+@click.option('-n', '--non-essential-genes', required=True, type=click.Path(exists=True))
 @click.option('-k', '--use_column', default=None)
 def calculate_precision_recall(bayes_factors, output_file, essential_genes, non_essential_genes, use_column):
     """
     Calculate precision-recall from an input Bayes Factors file:
 
         \b
-        BAGEL.py pr [Bayes Factor file] [output file] [essentials genes] [nonessentials genes]
+        BAGEL.py pr -i [Bayes Factor file] -o [output file] -e [essentials genes] -n [nonessentials genes]
 
     \b
     Required options:
-        [Bayes factors]            BAGEL output file.
-        [output file]              Output filename
-        [reference essentials]     File with list of training set of essential genes
-        [reference nonessentials]  File with list of training set of nonessential genes
+        -i, --bayes-factors [Bayes factors]                     BAGEL output file.
+        -o, --output-file [output file]                         Output filename
+        -e, --essential-genes [reference essentials]            File with list of training set of essential genes
+        -n, --non-essential-genes [reference nonessentials]     File with list of training set of nonessential genes
 
     \b
     Other options:
@@ -988,7 +997,7 @@ def calculate_precision_recall(bayes_factors, output_file, essential_genes, non_
 
     \b
     Example:
-             BAGEL.py pr  input.bf output.PR ref_essentials.txt ref_nonessentials.txt
+         BAGEL.py pr  -i input.bf -o output.PR -e ref_essentials.txt -n ref_nonessentials.txt
 
     """
     #
