@@ -19,6 +19,7 @@ Build 113
 
 Build 112
 1. Add sgRNA filtering options
+2. Implemented 'Click' library. Thanks to John McGonigle
 
 Build 111
 1. Add an option to equalize # of sgRNA per gene
