@@ -9,10 +9,13 @@ import sys
 import time
 
 VERSION = 2.0
-BUILD = 112
+BUILD = 113
 
 '''
 Update history
+
+Build 113
+1. Fixed bugs
 
 Build 112
 1. Add sgRNA filtering options
@@ -177,7 +180,7 @@ def report_bagel_version():
 
 @click.command(name='fc')
 @click.option('-i', '--read-count-file', required=True, type=click.Path(exists=True))
-@click.option('-o', '--output-file', required=True)
+@click.option('-o', '--output-label', required=True)
 @click.option('-c', '--control-columns', required=True)
 @click.option('-m', '--min-reads', type=int, default=0)
 @click.option('-Np', '--pseudo-count', type=int, default=5)
@@ -192,7 +195,7 @@ def calculate_fold_change(read_count_file, output_label, control_columns, min_re
     \b
     Required options:
         -i --read-count-file       Tab-delimited file of reagents and fold changes.  See documentation for format.
-        -i --output-label          Label for all output files
+        -o --output-label          Label for all output files
         -c --control-column         A comma-delimited list of columns of control (T0 or plasmid) columns.
                                     Input can be either number or name.
     \b
@@ -217,7 +220,7 @@ def calculate_fold_change(read_count_file, output_label, control_columns, min_re
 
     reads[reads.columns.values[0]].fillna('NO_GENE_NAME', inplace=True)
     reads.fillna(0, inplace=True)
-
+    control_columns = control_columns.split(",")
     #
     # check if controls are given as numeric or name
     #
@@ -234,6 +237,7 @@ def calculate_fold_change(read_count_file, output_label, control_columns, min_re
         ctrl_label_new = ';'.join(ctrl_labels)
         reads[ctrl_label_new] = ctrl_sum
     except:
+        print(reads[ctrl_labels].sum(axis=1))
         print("Invalid input controls")
         sys.exit(2)
 
@@ -269,7 +273,7 @@ def calculate_fold_change(read_count_file, output_label, control_columns, min_re
     foldchange['GENE'] = reads.iloc[f, 0]  # dataframe 'normed' has no GENE column
     for i in range(numColumns - 1):
         foldchange[normed.columns.values[i]] = np.log2(
-            (normed.iloc[:, normed.columns.values[i]]) / normed[ctrl_label_new]
+            (normed.loc[:, normed.columns.values[i]]) / normed[ctrl_label_new]
         )
     #
     # we have calculated a foldchange for the control column.  Drop it.
@@ -289,10 +293,10 @@ def calculate_fold_change(read_count_file, output_label, control_columns, min_re
 
 
 @click.command(name='bf')
-@click.option('-i', '--fold_change', required=True, type=click.Path(exists=True))
-@click.option('-o', '--output_file', required=True)
-@click.option('-e', '--essential_genes', required=True, type=click.Path(exists=True))
-@click.option('-n', '--non_essential_genes', required=True, type=click.Path(exists=True))
+@click.option('-i', '--fold-change', required=True, type=click.Path(exists=True))
+@click.option('-o', '--output-file', required=True)
+@click.option('-e', '--essential-genes', required=True, type=click.Path(exists=True))
+@click.option('-n', '--non-essential-genes', required=True, type=click.Path(exists=True))
 @click.option('-c', '--columns-to-test', required=True)
 @click.option('-w', '--network-file', metavar='[network File]', default=None, type=click.Path(exists=True))
 @click.option('-m', '--filter-multi-target', is_flag=True)
@@ -976,7 +980,7 @@ def calculate_bayes_factors(
 @click.option('-e', '--essential-genes', required=True,
               type=click.Path(exists=True))
 @click.option('-n', '--non-essential-genes', required=True, type=click.Path(exists=True))
-@click.option('-k', '--use_column', default=None)
+@click.option('-k', '--use-column', default=None)
 def calculate_precision_recall(bayes_factors, output_file, essential_genes, non_essential_genes, use_column):
     """
     Calculate precision-recall from an input Bayes Factors file:
