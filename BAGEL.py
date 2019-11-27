@@ -9,10 +9,13 @@ import sys
 import time
 
 VERSION = 2.0
+
 BUILD = 113
+
 
 '''
 Update history
+
 
 Build 113
 1. Fixed bugs
@@ -20,6 +23,7 @@ Build 113
 Build 112
 1. Add sgRNA filtering options
 2. Implemented 'Click' library. Thanks to John McGonigle
+
 
 Build 111
 1. Add an option to equalize # of sgRNA per gene
@@ -47,6 +51,7 @@ class OptionRequiredIf(click.Option):
 # ---------------------------------
 # BAGEL:  Bayesian Analysis of Gene EssentaLity
 # (c) Traver Hart <traver@hart-lab.org>, Eiru Kim <rooeikim@gmail.com> 2017.
+
 # Acknowledgements: John McGonigle <j.e.mcgonigle@gmail.com>
 # modified 10/2019
 # Free to modify and redistribute with attribution
@@ -54,6 +59,7 @@ class OptionRequiredIf(click.Option):
 
 # ------------------------------------
 # constants
+
 
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -77,6 +83,7 @@ class Training:
         self._bucket = np.arange(len(X))
         self._X = X
         self._step = 0
+
 
     def cross_validation(self):
         if self._bid < 1:  # bid check
