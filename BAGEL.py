@@ -204,13 +204,13 @@ def calculate_fold_change(read_count_file, output_label, control_columns, min_re
     Required options:
         -i --read-count-file       Tab-delimited file of reagents and fold changes.  See documentation for format.
         -o --output-label          Label for all output files
-        -c --control-column         A comma-delimited list of columns of control (T0 or plasmid) columns.
-                                    Input can be either number or name.
+        -c --control-columns       A comma-delimited list of columns of control (T0 or plasmid) columns.
+                                   Input can be either number or name.
     \b
     Other options:
-        --minreads=N                   Discard gRNA with T0 counts < N (default 0)
-        --pseudo=N	                   Add a pseudocount of N to every readcount (default 5)
-        -h, --help                     Show this help text
+        -m --min-reads=N           Discard gRNA with T0 counts < N (default 0)
+        -Np --pseudo-count=N	   Add a pseudocount of N to every readcount (default 5)
+        -h, --help                 Show this help text
 
     \b
     Example:
