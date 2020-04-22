@@ -9,10 +9,13 @@ import sys
 import time
 
 VERSION = 2.0
-BUILD = 113
+BUILD = 114
 
 '''
 Update history
+
+Build 114
+1. Add option for normalizing rep counts
 
 Build 113
 1. Fixed bugs
@@ -81,7 +84,7 @@ class Training:
     def cross_validation(self):
         if self._bid < 1:  # bid check
             print("The number of genes is too small! n<" + str(self._cvnum))
-            sys.exit(2)
+            sys.exit(1)
         drawing = list()
         mask = np.array([True] * self._n)
         for j in range(self._bid):
@@ -197,12 +200,12 @@ def calculate_fold_change(read_count_file, output_label, control_columns, min_re
     Required options:
         -i --read-count-file       Tab-delimited file of reagents and fold changes.  See documentation for format.
         -o --output-label          Label for all output files
-        -c --control-column         A comma-delimited list of columns of control (T0 or plasmid) columns.
+        -c --control-columns         A comma-delimited list of columns of control (T0 or plasmid) columns.
                                     Input can be either number or name.
     \b
     Other options:
         --minreads=N                   Discard gRNA with T0 counts < N (default 0)
-        --pseudo=N	                   Add a pseudocount of N to every readcount (default 5)
+        --pseudo-count=N	       Add a pseudocount of N to every readcount (default 5)
         -h, --help                     Show this help text
 
     \b
@@ -240,7 +243,7 @@ def calculate_fold_change(read_count_file, output_label, control_columns, min_re
     except:
         print(reads[ctrl_labels].sum(axis=1))
         print("Invalid input controls")
-        sys.exit(2)
+        sys.exit(1)
 
     numClones, numColumns = reads.shape
     print("Controls: " + ", ".join(ctrl_labels))
@@ -313,10 +316,11 @@ def calculate_fold_change(read_count_file, output_label, control_columns, min_re
 @click.option('-f', '--equalise-sgrna-no', type=int)
 @click.option('-s', '--seed', default=int(time.time() * 100000 % 100000), type=int)
 @click.option('-t', '--run-test-mode', is_flag=True)
+@click.option('-p', '--equalise-rep-no', type=int)
 def calculate_bayes_factors(
         fold_change, output_file, essential_genes, non_essential_genes, columns_to_test, network_file, align_info,
         use_bootstrapping, use_small_sample, filter_multi_target, loci_without_mismatch, loci_with_mismatch,
-        bootstrap_iterations, no_of_cross_validations, sgrna_bayes_factors, equalise_sgrna_no, seed, run_test_mode
+        bootstrap_iterations, no_of_cross_validations, sgrna_bayes_factors, equalise_sgrna_no, seed, run_test_mode, equalise_rep_no
 ):
     """
     \b
@@ -347,7 +351,7 @@ def calculate_bayes_factors(
         -w  [network file]    Enable Network boosting. Tab-delmited file of edges. [GeneA (\\t) GeneB]\n'
 
     \b
-        Multi-target guides filtering options:
+    Multi-target guides filtering options:
         -m, --filter-multi-target     Enable filtering multi-targeting guide RNAs
         --align-info  [file]          Input precalculated align-info file
         -m0, --loci-without-mismatch  Filtering guide RNAs without mismatch targeting over than [N] loci, default = 10
@@ -358,7 +362,8 @@ def calculate_bayes_factors(
         -b, --bootstrapping            Use bootstrapping instead of cross-validation (Slow)
         -s, --small-sample             Low-fat BAGEL, Only resampled training set (Bootstrapping, iteration = 100)
         -r  --sgrna-bayes-factors      Calculate sgRNA-wise Bayes Factor
-        -f  --equalise-sgrna-number    Equalize the number of sgRNAs per gene to particular value [Number]
+        -f  --equalise-sgrna-no        Equalize the number of sgRNAs per gene to particular value [Number]
+        -p  --equalise-rep-no          Equalize the number of repicates to particular value [Number]
         -N  --no-of-cross-validations  Number of sections for cross validation (default 10)
         -NB  --bootstraps-iterations   Number of bootstrap iterations (default 1000)
         -s, --seed=N                   Define random seed
@@ -389,6 +394,11 @@ def calculate_bayes_factors(
         flat_sgrna = True
     else:
         flat_sgrna = False
+
+    if equalise_rep_no:
+        flat_rep = True
+    else:
+        flat_rep = False
 
     if use_small_sample:
         train_method = 0
@@ -434,14 +444,14 @@ def calculate_bayes_factors(
 
         except:
             print("Please check align-info file")
-            sys.exit(2)
+            sys.exit(1)
 
         print("Total %d multi-targeting gRNAs are discarded" % len(multi_targeting_sgrnas))
 
     #
     # LOAD FOLDCHANGES
     #
-
+    rnatagset = set()
     with open(fold_change) as fin:
         fieldname = fin.readline().rstrip().split('\t')
         #
@@ -461,7 +471,7 @@ def calculate_bayes_factors(
 
         except:
             print("Invalid columns")
-            sys.exit(2)
+            sys.exit(1)
 
         for line in fin:
             fields = line.rstrip().split('\t')
@@ -469,6 +479,10 @@ def calculate_bayes_factors(
             if filter_multi_target is True:  # multitargeting sgrna filtering
                 if rnatag in multi_targeting_sgrnas:
                     continue  # skip multitargeting sgrna.
+            if rnatag in rnatagset:
+                print("Error! sgRNA tag duplicates")
+                sys.exit(1)
+            rnatagset.add(rnatag)
             gsym = fields[1]
 
             genes[gsym] = 1
@@ -649,7 +663,7 @@ def calculate_bayes_factors(
             slope, intercept, r_value, p_value, std_err = stats.linregress(np.array(testx), np.array(testy))
         except:
             print("Regression failed. Check quality of the screen")
-            sys.exit(2)
+            sys.exit(1)
         #
         # BF calculation
         #
@@ -758,7 +772,7 @@ def calculate_bayes_factors(
             if rna_level == False:
                 for g in gene2rna:
                     penalty = 0.0
-                    for seqid in gene2rna[gene]:
+                    for seqid in gene2rna[g]:
                         if seqid in multi_targeting_sgrnas_info:
                             penalty += float(multi_targeting_sgrnas_info[seqid][0] - 1) * coeff_df['Coefficient'][
                                 0] + float(multi_targeting_sgrnas_info[seqid][1]) * coeff_df['Coefficient'][1]
@@ -897,10 +911,20 @@ def calculate_bayes_factors(
         if run_test_mode == True:
             fp.close()
 
+
+    
+
     #
     # print out results
     #
 
+    # Equalizing factor (Replicates)
+    if flat_rep==True:
+        eqf = equalise_rep_no/float(len(column_labels))
+    else:
+        eqf = 1
+
+    # print out
     with open(output_file, 'w') as fout:
 
         if rna_level == True:
@@ -926,11 +950,12 @@ def calculate_bayes_factors(
                     fout.write('{0:4.3f}\t'.format(bf_mean_rna_rep[rnatag][rep]))
                     if train_method == 0:
                         fout.write('{0:4.3f}\t'.format(bf_std_rna_rep[rnatag][rep]))
+
                 # Sum BF of replicates
                 if filter_multi_target == True:
-                    fout.write('{0:4.3f}'.format(float(bf_multi_corrected_rna[rnatag])))
+                    fout.write('{0:4.3f}'.format(float(bf_multi_corrected_rna[rnatag]) * eqf))  # eqf = equalizing factor for the number of replicates
                 else:
-                    fout.write('{0:4.3f}'.format(float(sum(list(bf_mean_rna_rep[rnatag].values())))))
+                    fout.write('{0:4.3f}'.format(float(sum(list(bf_mean_rna_rep[rnatag].values()))) * eqf))
 
                 # Num obs
                 if train_method == 0:
@@ -955,15 +980,15 @@ def calculate_bayes_factors(
                 if network_boost == True:
                     boostedbf_mean = np.mean(boostedbf[g])
                     boostedbf_std = np.std(boostedbf[g])
-                    fout.write('\t{0:4.3f}'.format(float(boostedbf_mean)))
+                    fout.write('\t{0:4.3f}'.format(float(boostedbf_mean) * eqf))
                     if train_method == 0:
-                        fout.write('\t{0:4.3f}'.format(float(boostedbf_std)))
+                        fout.write('\t{0:4.3f}'.format(float(boostedbf_std) * eqf))
 
                 # BF
                 if filter_multi_target == True:
-                    fout.write('\t{0:4.3f}'.format(float(bf_multi_corrected_gene[g])))
+                    fout.write('\t{0:4.3f}'.format(float(bf_multi_corrected_gene[g]) * eqf))  # eqf = equalizing factor for the number of replicates
                 else:
-                    fout.write('\t{0:4.3f}'.format(float(bf_mean[g])))
+                    fout.write('\t{0:4.3f}'.format(float(bf_mean[g]) * eqf ))
                 # STD, Count
                 if train_method == 0:
                     fout.write('\t{0:4.3f}\t{1:d}'.format(float(bf_std[g]), num_obs[g]))
@@ -1016,7 +1041,7 @@ def calculate_precision_recall(bayes_factors, output_file, essential_genes, non_
         bf_column = use_column
         if bf_column not in bf.dtypes.index:
             print("Error! the column name is not in the file")
-            sys.exit(2)
+            sys.exit(1)
     else:
         bf_column = 'BF'
 
@@ -1036,7 +1061,7 @@ def calculate_precision_recall(bayes_factors, output_file, essential_genes, non_
 
         fout.write('Gene\t')
         fout.write(bf_column)
-        fout.write('\tRecall\tPrecision\n')
+        fout.write('\tRecall\tPrecision\tFDR\n')
 
         for g in bf.index.values:
             if (g in ess):
@@ -1046,7 +1071,7 @@ def calculate_precision_recall(bayes_factors, output_file, essential_genes, non_
             recall = cumulative_tp / totNumEssentials
             if ((cumulative_tp > 0) | (cumulative_fp > 0)):
                 precision = cumulative_tp / (cumulative_tp + cumulative_fp)
-            fout.write('{0:s}\t{1:4.3f}\t{2:4.3f}\t{3:4.3f}\n'.format(g, bf.iloc[g, bf_column], recall, precision))
+            fout.write('{0:s}\t{1:4.3f}\t{2:4.3f}\t{3:4.3f}\t{4:4.3f}\n'.format(g, bf.loc[g, bf_column], recall, precision, 1.0-precision))
 
 
 if __name__ == '__main__':
