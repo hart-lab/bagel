@@ -1,0 +1,6 @@
+#All delimiter is tab
+#*: Replicates/Controls should be identical as headers of the readcount file.
+#[Screen Name/ID]	[Replicates*]	[Controls*]
+BATCH1_HAP1_T3	T3_A,T3_B,T3_C	T0_-
+BATCH1_HAP1_T18	T18_A,T18_B,T18_C	T0_-
+BATCH1_HAP1_T18_STARVED	T18_A_Starved,T18_B_Starved,T18_C_Starved	T0_-

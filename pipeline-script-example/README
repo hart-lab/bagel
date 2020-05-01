@@ -1,0 +1,42 @@
+## RUN BAGEL SCRIPT
+
+python run_bagel_crisprcleanr.py -i HAP1-TKOv3-EXAMPLE.txt -s HAP1-TKOv3-EXAMPLE-SCREENINFO.txt -o HAP1-TKOv3-bagel
+
+
+## required files
+1. BAGEL.py
+2. core-essential, non-essential gene sets (CEG, NEG)
+3. qc_ess_dist.py
+4. CRISPRcleanR library file
+5. (optional) library file for multi-targeting correction 
+
+## Before run script
+
+1. Users should check file paths and options in the run_bagel_crisprcleanr.py script befor run.
+2. Check CRISPRcleanR installed
+3. Check Rscript working via command line   '$ Rscript CRISPRcleanR.R'
+4. Final files -> *.bf, *.pr
+
+
+## screen info format
+
+#All delimiter is tab
+#*: Replicates/Controls should be identical as headers of the readcount file.
+#[Screen Name/ID]  tab   [Replicates*]  tab   [Controls*]
+BATCH1_HAP1_T3	T3_A,T3_B,T3_C	T0_-
+BATCH1_HAP1_T18	T18_A,T18_B,T18_C	T0_-
+BATCH1_HAP1_T18_STARVED	T18_A_Starved,T18_B_Starved,T18_C_Starved	T0_-
+
+
+
+## Read count format
+
+#All delimiter is tab
+#no space, comma in screen name
+#[GENE_CLONE = sgRNA tag]  tab  [GENE]  tab  [Screen1]  tab  [Screen 2]  ...
+
+GENE_CLONE	GENE	T0_-	T3_A	T3_B	T3_C	T18_A	T18_B	T18_C	T18_A_Starved	T18_B_Starved	T18_C_Starved
+EGFP_TGGTTGTCGGGCAGCAGCAC	EGFP	537	222	150	216	243	115	304	277	319	240
+EGFP_GGTTGTCGGGCAGCAGCACG	EGFP	210	197	92	125	195	177	115	96	139	235
+
+
