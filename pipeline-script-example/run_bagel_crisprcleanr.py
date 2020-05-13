@@ -255,13 +255,13 @@ def run_bagel_script(
         if BOOTSTRAPPING == True:
             bagel_command_bf.extend(['-b'])
             if int(BOOTSTRAPPING_ITERATION) != 1000:
-                bagel_command_bf.extend(['-NB',int(BOOTSTRAPPING_ITERATION)])
+                bagel_command_bf.extend(['-NB',str(int(BOOTSTRAPPING_ITERATION))])
 
         # option for Normalization
         if int(NORMALIZE_SGRNA_COUNT) > 0:
-            bagel_command_bf.extend(['--equalise-sgrna-no',int(NORMALIZE_SGRNA_COUNT)])
+            bagel_command_bf.extend(['--equalise-sgrna-no',str(int(NORMALIZE_SGRNA_COUNT))])
         if int(NORMALIZE_REPLICATES_N) > 0:
-            bagel_command_bf.extend(['--equalise-rep-no',int(NORMALIZE_REPLICATES_N)])
+            bagel_command_bf.extend(['--equalise-rep-no',str(int(NORMALIZE_REPLICATES_N))])
 
 
         try:
