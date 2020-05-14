@@ -2,7 +2,7 @@
 
 BAGEL2 software
 
-The Bayesian Analysis of Gene Essentiality 2 (BAGEL2) is a robust algorithm for accurate measurement of essentiality of genes from single hairpin RNA and CRISPR-cas9 genome wide genetic screens. 
+The Bayesian Analysis of Gene Essentiality 2 (BAGEL2) is a robust gene essentiality identifier from CRISPR-cas9 genome wide pooled library screen data.
 
 ## Download BAGEL2
 
