@@ -10,7 +10,7 @@ The Bayesian Analysis of Gene Essentiality 2 (BAGEL2) is a robust gene essential
 git clone https://github.com/hart-lab/bagel
 ```
 
-## Test BAGEL-CRISPRcleanR Pipeline
+## Test BAGEL2-CRISPRcleanR Pipeline
 
 ```
 cd pipeline-script-example
