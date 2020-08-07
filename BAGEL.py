@@ -9,7 +9,10 @@ import sys
 import time
 
 VERSION = 2.0
+
 BUILD = 115
+
+
 
 '''
 Update history
@@ -26,6 +29,7 @@ Build 113
 Build 112
 1. Add sgRNA filtering options
 2. Implemented 'Click' library. Thanks to John McGonigle
+
 
 Build 111
 1. Add an option to equalize # of sgRNA per gene
@@ -53,6 +57,7 @@ class OptionRequiredIf(click.Option):
 # ---------------------------------
 # BAGEL:  Bayesian Analysis of Gene EssentaLity
 # (c) Traver Hart <traver@hart-lab.org>, Eiru Kim <rooeikim@gmail.com> 2017.
+
 # Acknowledgements: John McGonigle <j.e.mcgonigle@gmail.com>
 # modified 10/2019
 # Free to modify and redistribute with attribution
@@ -60,6 +65,7 @@ class OptionRequiredIf(click.Option):
 
 # ------------------------------------
 # constants
+
 
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -83,6 +89,7 @@ class Training:
         self._bucket = np.arange(len(X))
         self._X = X
         self._step = 0
+
 
     def cross_validation(self):
         if self._bid < 1:  # bid check
@@ -203,13 +210,14 @@ def calculate_fold_change(read_count_file, output_label, control_columns, min_re
     Required options:
         -i --read-count-file       Tab-delimited file of reagents and fold changes.  See documentation for format.
         -o --output-label          Label for all output files
-        -c --control-columns         A comma-delimited list of columns of control (T0 or plasmid) columns.
+        -c --control-columns       A comma-delimited list of columns of control (T0 or plasmid) columns.
                                     Input can be either number or name.
     \b
     Other options:
-        --minreads=N                   Discard gRNA with T0 counts < N (default 0)
-        --pseudo-count=N	       Add a pseudocount of N to every readcount (default 5)
-        -h, --help                     Show this help text
+        --min-reads=N              Discard gRNA with T0 counts < N (default 0)
+        -Np, --pseudo-count=N	     Add a pseudocount of N to every readcount (default 5)
+        -h, --help                 Show this help text
+
 
     \b
     Example:
