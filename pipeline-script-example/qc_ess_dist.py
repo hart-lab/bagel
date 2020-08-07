@@ -12,11 +12,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import math
 sns.set_context('talk')
 from os import path
 import click
 
 
+def cohensd_func(a,b):
+    s=math.sqrt(((len(a)-1)*np.var(a) + (len(b)-1)*np.var(b)) /
+           (len(a)+len(b)-2)
+          )
+    return (np.mean(b) - np.mean(a)) / s
 
 @click.command(context_settings=dict(help_option_names=['-h', '--help']))
 @click.option('-i', '--input-foldchange', required=True, type=click.Path(exists=True))
@@ -52,7 +58,7 @@ def qc_ess_distribution(
         ax = sns.kdeplot(fc_ess,color='red',ax=ax)
         ax = sns.kdeplot(fc_noness,color='blue',ax=ax)
         ax.legend(['Ess','Non-ess'],loc='best')
-        cohensd = (np.mean(fc_noness.values) - np.mean(fc_ess.values)) / np.std(np.concatenate([fc_ess.values, fc_noness.values]))
+        cohensd = cohensd_func(fc_ess.values,fc_noness.values)
 
         print (f"Quality Score ({sample}) = {cohensd:.4g}")  # -2.0 < QS < 2.0, QS > 1.0 is a good sample.
         

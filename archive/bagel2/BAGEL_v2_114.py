@@ -9,16 +9,10 @@ import sys
 import time
 
 VERSION = 2.0
-
-BUILD = 115
-
-
+BUILD = 114
 
 '''
 Update history
-
-Build 115
-1. Add single pass without sampling
 
 Build 114
 1. Add option for normalizing rep counts
@@ -29,7 +23,6 @@ Build 113
 Build 112
 1. Add sgRNA filtering options
 2. Implemented 'Click' library. Thanks to John McGonigle
-
 
 Build 111
 1. Add an option to equalize # of sgRNA per gene
@@ -57,7 +50,6 @@ class OptionRequiredIf(click.Option):
 # ---------------------------------
 # BAGEL:  Bayesian Analysis of Gene EssentaLity
 # (c) Traver Hart <traver@hart-lab.org>, Eiru Kim <rooeikim@gmail.com> 2017.
-
 # Acknowledgements: John McGonigle <j.e.mcgonigle@gmail.com>
 # modified 10/2019
 # Free to modify and redistribute with attribution
@@ -65,7 +57,6 @@ class OptionRequiredIf(click.Option):
 
 # ------------------------------------
 # constants
-
 
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -89,7 +80,6 @@ class Training:
         self._bucket = np.arange(len(X))
         self._X = X
         self._step = 0
-
 
     def cross_validation(self):
         if self._bid < 1:  # bid check
@@ -210,14 +200,13 @@ def calculate_fold_change(read_count_file, output_label, control_columns, min_re
     Required options:
         -i --read-count-file       Tab-delimited file of reagents and fold changes.  See documentation for format.
         -o --output-label          Label for all output files
-        -c --control-columns       A comma-delimited list of columns of control (T0 or plasmid) columns.
+        -c --control-columns         A comma-delimited list of columns of control (T0 or plasmid) columns.
                                     Input can be either number or name.
     \b
     Other options:
-        --min-reads=N              Discard gRNA with T0 counts < N (default 0)
-        -Np, --pseudo-count=N	     Add a pseudocount of N to every readcount (default 5)
-        -h, --help                 Show this help text
-
+        --minreads=N                   Discard gRNA with T0 counts < N (default 0)
+        --pseudo-count=N	       Add a pseudocount of N to every readcount (default 5)
+        -h, --help                     Show this help text
 
     \b
     Example:
@@ -320,7 +309,6 @@ def calculate_fold_change(read_count_file, output_label, control_columns, min_re
 @click.option('--align-info', metavar='--align-info [File]', default=None,
               type=click.Path(exists=True), cls=OptionRequiredIf)
 @click.option('-b', '--use-bootstrapping', is_flag=True)
-@click.option('-NS', '--no-resampling', is_flag=True)
 @click.option('-s', '--use-small-sample', is_flag=True)
 @click.option('-N', '--no-of-cross-validations', type=int, default=10)
 @click.option('-NB', '--bootstrap-iterations', type=int, default=1000)
@@ -331,7 +319,7 @@ def calculate_fold_change(read_count_file, output_label, control_columns, min_re
 @click.option('-p', '--equalise-rep-no', type=int)
 def calculate_bayes_factors(
         fold_change, output_file, essential_genes, non_essential_genes, columns_to_test, network_file, align_info,
-        use_bootstrapping, no_resampling, use_small_sample, filter_multi_target, loci_without_mismatch, loci_with_mismatch,
+        use_bootstrapping, use_small_sample, filter_multi_target, loci_without_mismatch, loci_with_mismatch,
         bootstrap_iterations, no_of_cross_validations, sgrna_bayes_factors, equalise_sgrna_no, seed, run_test_mode, equalise_rep_no
 ):
     """
@@ -372,7 +360,6 @@ def calculate_bayes_factors(
     \b
     Other options:
         -b, --bootstrapping            Use bootstrapping instead of cross-validation (Slow)
-        -NS, --no-resampling           Run BAGEL without resampling
         -s, --small-sample             Low-fat BAGEL, Only resampled training set (Bootstrapping, iteration = 100)
         -r  --sgrna-bayes-factors      Calculate sgRNA-wise Bayes Factor
         -f  --equalise-sgrna-no        Equalize the number of sgRNAs per gene to particular value [Number]
@@ -590,10 +577,6 @@ def calculate_bayes_factors(
     if run_test_mode == True:
         fp = open(output_file + ".traininfo", "w")
         fp.write("#1: Loopcount\n#2: Training set\n#3: Testset\n")
-    # No resampling option
-    if no_resampling == True:
-        print("# Caution: Resampling is disabled")
-        LOOPCOUNT = 1
 
     print("Iter TrainEss TrainNon TestSet")
     sys.stdout.flush()
@@ -608,13 +591,8 @@ def calculate_bayes_factors(
         # training set
         # define essential and nonessential training sets:  arrays of indexes
         #
-        if no_resampling == True:
-            # no resampling
-            gene_train_idx = gene_idx
-            gene_test_idx = gene_idx
-        else:
-            # CV or bootstrapping
-            gene_train_idx, gene_test_idx = training_data.get_data(train_method)
+
+        gene_train_idx, gene_test_idx = training_data.get_data(train_method)
         if use_small_sample:
             # test set is union of rest of training set (gold-standard) and the other genes (all of non-gold-standard)
             gene_test_idx = np.union1d(gene_test_idx, all_non_gs)
