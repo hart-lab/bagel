@@ -30,15 +30,17 @@ python3 precalc_library_alignment_info.py Avana_readid2seq.tsv hg19 gencode.v28l
     ...    
 
   - Options
-    --output       : Specify an alignment-info file (Default:{outputalignment})
-    --outputfastq  : Specify a temporary fastq output file (Default:{outputfastq})
-    --outputbowtie : Specify a temporary bowtie output file (Default:{outputbowtie})
+    --output [path]       : Specify an alignment-info file (Default:{outputalignment})
+    --outputfastq [path]  : Specify a temporary fastq output file (Default:{outputfastq})
+    --outputbowtie [path] : Specify a temporary bowtie output file (Default:{outputbowtie})
+    --custompam [String]  : Specify a PAM sequence (Default: NGG)
+    --pam-loc [number]    : Loctaion of PAM (0: End (Default, Cas9), 1: Front (for Cpf1), 2: No PAM)
     
 """
 
 if len(sys.argv) < 4:
 	print(helptext)
-	sys.exit(2)
+	sys.exit(1)
 
 from pylab import *
 
@@ -50,16 +52,26 @@ readid2seq_file = sys.argv[1]
 genomefile = sys.argv[2]
 gencodefile = sys.argv[3]
 
-readid2seq = pd.read_csv(readid2seq_file,sep="\t",index_col=0,header=0).iloc[:,0]
+try:
+	readid2seq = pd.read_csv(readid2seq_file,sep="\t",index_col=0,header=0).iloc[:,0]
+except:
+	print("Error - Check READID2SEQ file format")
+	sys.exit(1)
 
+# check duplicates of readid
+if readid2seq.index.is_unique != True:
+	print("Error - Read ID is not unique")
+	sys.exit(1)
 
+pam="NGG"
+pamloc=0
 
 import getopt
 try:
-	opts, args = getopt.getopt(sys.argv[4:], "", ["outputfastq=","outputbowtie=","output="])
+	opts, args = getopt.getopt(sys.argv[4:], "", ["outputfastq=","outputbowtie=","output=","pam-loc=","custompam="])
 except getopt.GetoptError:
 	print(helptext)
-	sys.exit(2)
+	sys.exit(1)
 for opt, arg in opts:
 	if opt == '--output':
 		outputalignment = arg
@@ -67,6 +79,14 @@ for opt, arg in opts:
 		outputfastq = arg
 	elif opt == '--outputbowtie':
 		outputbowtie = arg
+
+	elif opt == '--custompam':
+		pam = str(arg)
+	elif opt == '--pam-loc':
+		pamloc=int(arg)
+
+if pamloc == 2: # no pam
+	pam = ""
 
 
 
@@ -183,25 +203,27 @@ def find_genes(chr2gene,gene2transcript,transcript2location,chrom,location,direc
 
 
 def prepare_library_alignment_info(guideid2seq_series,genome,gencode,outputfastq="guideseq_bowtie.fq",outputbowtie="bowtie_output.txt",outputalignment="Alignment_info.txt"
-	,chrlist=["chr1","chr2","chr3","chr4","chr5","chr6","chr7","chr8","chr9","chr10","chr11","chr12","chr13","chr14","chr15","chr16","chr17","chr18","chr19","chr20","chr21","chr22","chrX","chrY",'chrM']):
+	,chrlist=["chr1","chr2","chr3","chr4","chr5","chr6","chr7","chr8","chr9","chr10","chr11","chr12","chr13","chr14","chr15","chr16","chr17","chr18","chr19","chr20","chr21","chr22","chrX","chrY",'chrM'],pam="NGG",pamloc=0):
 	
 	
 	gene2transcript,transcript2gene,transcript2exon,transcript2location,chr2gene = gencode_parsing(gencode)
 	# write guide_sgrna file (New version. Using sequence instead of readid)
 
+	ambiguous_nt = pam.count("N")
+	check_duplicate = set()
 	with open(outputfastq,'w') as fout:
-		for readid in guideid2seq_series:  #for i in range(len(librarydata.index)):
-			#rna = librarydata[seq_col][i]
-			#gene = librarydata[gene_col][i]
+		for readid in guideid2seq_series.index:
 
 			rna = guideid2seq_series[readid]
-			#if gene not in gene2seq:
-			#	gene2seq[gene] = list()
-			#gene2seq[gene].append(rna)
+			if pamloc==1: # cpf1
+				newrna = pam + rna
+			else: # cas9 or nopam
+				newrna = rna + pam
+			
 			fout.write("@%s\n"%readid)
-			fout.write("%s\n"%(rna+"NGG"))
+			fout.write("%s\n"%(newrna))
 			fout.write("+\n")
-			fout.write("%s\n"%("E"*len(rna+"NGG")))
+			fout.write("%s\n"%("E"*len(newrna)))
 			
 
 
@@ -210,12 +232,12 @@ def prepare_library_alignment_info(guideid2seq_series,genome,gencode,outputfastq
 	# run bowtie
 	try:
 		
-		subprocess.run(["bowtie","-v",str(3),"-l",str(5),"-a",genome,outputfastq,outputbowtie])
+		subprocess.run(["bowtie","-v",str(2+ambiguous_nt),"-l",str(5),"-a",genome,outputfastq,outputbowtie])
 
 		
 	except:
 		print("Error - fail to run bowtie")
-		sys.exit(2)
+		sys.exit(1)
 	
 
 	
@@ -225,7 +247,13 @@ def prepare_library_alignment_info(guideid2seq_series,genome,gencode,outputfastq
 
 
 	for i in range(len(library_align.index)):
-		mismatch[i] = len(library_align.ix[i][7].split(",")) - 1  # substract the mismatch at NGG
+		if pd.isnull(library_align.iloc[i][7]) == False:
+			try:
+				mismatch[i] = len(library_align.iloc[i][7].split(",")) - ambiguous_nt  # substract the mismatch at NGG
+			except:
+				print(f"'{library_align.iloc[i][7]}'")
+		else:
+			mismatch[i] = 0
 		
 	library_align[8] = pd.Series(mismatch)
 
@@ -274,4 +302,7 @@ def prepare_library_alignment_info(guideid2seq_series,genome,gencode,outputfastq
 
 
 
-prepare_library_alignment_info(readid2seq,genomefile,gencodefile,outputfastq=outputfastq,outputbowtie=outputbowtie,outputalignment=outputalignment)
+
+prepare_library_alignment_info(readid2seq,genomefile,gencodefile,outputfastq=outputfastq,outputbowtie=outputbowtie,outputalignment=outputalignment,pam=pam,pamloc=pamloc)
+
+print(f"Job completed - {outputalignment}")
