@@ -18,7 +18,7 @@ BUILD = 115
 Update history
 
 Build 115
-1. Add single pass without sampling
+1. Add single pass without resampling
 
 Build 114
 1. Add option for normalizing rep counts
