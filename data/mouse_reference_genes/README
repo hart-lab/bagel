@@ -1,0 +1,19 @@
+Mouse Reference Core-essential and Non-essential genes
+
+Detailed methods was desbribed in Reference #1.
+
+1. mCEG0.txt
+One-to-one mouse orthologs of human Core-essential genes. We discarded non-expressed genes in two pan mouse RNA-seq studies [2,3].
+
+2. mNEG0.txt
+One-to-one mouse orthologs of human Non-essential genes. We discarded expressed genes in two pan mouse RNA-seq studies [2,3].
+
+3. mCEG1.txt
+Experimentally derived mouse core-essential genes that are essential at all 6 mouse cell lines in [1] and expressed [2,3].
+
+# References
+[1] Lawson, Keith A., et al. "Functional genomic landscape of cancer-intrinsic evasion of killing by T cells." Nature 586.7827 (2020): 120-126.
+[2] Söllner, Julia F., et al. "An RNA-Seq atlas of gene expression in mouse and rat normal tissues." Scientific data 4 (2017): 170185.
+[3] Li, Bin, et al. "A comprehensive mouse transcriptomic BodyMap across 17 tissues by RNA-seq." Scientific reports 7.1 (2017): 1-10.
+
+

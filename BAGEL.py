@@ -313,7 +313,7 @@ def calculate_fold_change(read_count_file, output_label, control_columns, min_re
               type=click.Path(exists=True), cls=OptionRequiredIf)
 @click.option('-b', '--use-bootstrapping', is_flag=True)
 @click.option('-NS', '--no-resampling', is_flag=True)
-@click.option('-s', '--use-small-sample', is_flag=True)
+@click.option('-ss', '--use-small-sample', is_flag=True)
 @click.option('-N', '--no-of-cross-validations', type=int, default=10)
 @click.option('-NB', '--bootstrap-iterations', type=int, default=1000)
 @click.option('-r', '--sgrna-bayes-factors', is_flag=True)
@@ -365,7 +365,7 @@ def calculate_bayes_factors(
     Other options:
         -b, --bootstrapping            Use bootstrapping instead of cross-validation (Slow)
         -NS, --no-resampling           Run BAGEL without resampling
-        -s, --small-sample             Low-fat BAGEL, Only resampled training set (Bootstrapping, iteration = 100)
+        -ss, --use-small-sample        Low-fat BAGEL, Only resampled training set (Bootstrapping, iteration = 100)
         -r  --sgrna-bayes-factors      Calculate sgRNA-wise Bayes Factor
         -f  --equalise-sgrna-no        Equalize the number of sgRNAs per gene to particular value [Number]
         -p  --equalise-rep-no          Equalize the number of repicates to particular value [Number]
