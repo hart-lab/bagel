@@ -120,6 +120,7 @@ def gencode_parsing(genecodefile,chrlist=["chr1","chr2","chr3","chr4","chr5","ch
 			if featuretype=='exon':
 				gene=""
 				transcript=""
+				support_lv = 0
 				for tag in tags:
 					if tag[0] == 'gene_name':#'gene_id':
 						gene=tag[1].split(".")[0]
@@ -140,6 +141,7 @@ def gencode_parsing(genecodefile,chrlist=["chr1","chr2","chr3","chr4","chr5","ch
 			elif featuretype == 'transcript':
 				gene=""
 				transcript=""
+				support_lv = 0
 				for tag in tags:
 					if tag[0] == 'gene_name':#'gene_id':
 						gene=tag[1].split(".")[0]
